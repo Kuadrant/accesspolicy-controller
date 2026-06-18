@@ -33,7 +33,9 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	kuadrantv1 "github.com/kuadrant/kuadrant-operator/api/v1"
 	agenticv1alpha1 "github.com/vibhor-5/accesspolicy-controller/api/v1alpha1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -61,6 +63,12 @@ var _ = BeforeSuite(func() {
 
 	var err error
 	err = agenticv1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = kuadrantv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = gatewayapiv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme

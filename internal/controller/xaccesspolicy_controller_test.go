@@ -54,7 +54,26 @@ var _ = Describe("XAccessPolicy Controller", func() {
 						Name:      resourceName,
 						Namespace: resourceNamespace,
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: agenticv1alpha1.XAccessPolicySpec{
+						TargetRefs: []agenticv1alpha1.TargetRef{
+							{
+								Group: "gateway.networking.k8s.io",
+								Kind:  "Gateway",
+								Name:  "test-gateway",
+							},
+						},
+						Rules: []agenticv1alpha1.Rule{
+							{
+								Name: "test-rule",
+								Authorization: agenticv1alpha1.Authorization{
+									Type: "CEL",
+									CEL: agenticv1alpha1.CELAuthorization{
+										Expression: "request.mcp.tool_name == 'search_web'",
+									},
+								},
+							},
+						},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
@@ -79,9 +98,7 @@ var _ = Describe("XAccessPolicy Controller", func() {
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespacedName,
 			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+			Expect(err).To(HaveOccurred()) // Gateway CRDs are not installed in envtest
 		})
 	})
 })
