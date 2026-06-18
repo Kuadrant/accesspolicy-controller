@@ -24,35 +24,48 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type TargetRef struct {
+	Group string `json:"group"`
+	Kind  string `json:"kind"`
+	Name  string `json:"name"`
+}
+
+type CELAuthorization struct {
+	Expression string `json:"expression"`
+}
+
+type Authorization struct {
+	Type string           `json:"type"`
+	CEL  CELAuthorization `json:"cel,omitempty"`
+}
+
+type Rule struct {
+	Name          string        `json:"name"`
+	Authorization Authorization `json:"authorization"`
+}
+
 // XAccessPolicySpec defines the desired state of XAccessPolicy
 type XAccessPolicySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
-
-	// foo is an example field of XAccessPolicy. Edit xaccesspolicy_types.go to remove/update
-	// +optional
-	Foo *string `json:"foo,omitempty"`
+	TargetRefs []TargetRef `json:"targetRefs"`
+	Rules      []Rule      `json:"rules"`
 }
+
+const (
+	PolicyConditionAccepted     = "Accepted"
+	PolicyConditionResolvedRefs = "ResolvedRefs"
+	PolicyConditionProgrammed   = "Programmed"
+
+	PolicyReasonInvalidCEL      = "InvalidCEL"
+	PolicyReasonInvalidTarget   = "InvalidTarget"
+	PolicyReasonGatewayNotFound = "GatewayNotFound"
+	PolicyReasonAccepted        = "Accepted"
+	PolicyReasonProgrammed      = "Programmed"
+	PolicyReasonResolved        = "Resolved"
+)
 
 // XAccessPolicyStatus defines the observed state of XAccessPolicy.
 type XAccessPolicyStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
 	// conditions represent the current state of the XAccessPolicy resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
 	// +listType=map
 	// +listMapKey=type
 	// +optional
@@ -61,6 +74,10 @@ type XAccessPolicyStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Namespaced
+// +kubebuilder:printcolumn:name="Accepted",type=string,JSONPath=".status.conditions[?(@.type=='Accepted')].status"
+// +kubebuilder:printcolumn:name="ResolvedRefs",type=string,JSONPath=".status.conditions[?(@.type=='ResolvedRefs')].status"
+// +kubebuilder:printcolumn:name="Programmed",type=string,JSONPath=".status.conditions[?(@.type=='Programmed')].status"
 
 // XAccessPolicy is the Schema for the xaccesspolicies API
 type XAccessPolicy struct {

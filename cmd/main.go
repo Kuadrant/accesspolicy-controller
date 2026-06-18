@@ -35,8 +35,10 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	kuadrantv1 "github.com/kuadrant/kuadrant-operator/api/v1"
 	agenticv1alpha1 "github.com/vibhor-5/accesspolicy-controller/api/v1alpha1"
 	"github.com/vibhor-5/accesspolicy-controller/internal/controller"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -49,6 +51,8 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(agenticv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(kuadrantv1.AddToScheme(scheme))
+	utilruntime.Must(gatewayapiv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
