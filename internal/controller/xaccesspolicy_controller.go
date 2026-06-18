@@ -42,6 +42,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 )
 
+const gatewayKind = "Gateway"
+
 // XAccessPolicyReconciler reconciles a XAccessPolicy object
 type XAccessPolicyReconciler struct {
 	client.Client
@@ -70,7 +72,7 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	targetRef := policy.Spec.TargetRefs[0]
-	if targetRef.Kind != "Gateway" {
+	if targetRef.Kind != gatewayKind {
 		r.updateStatus(&policy, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, agenticv1alpha1.PolicyReasonInvalidTarget, "TargetRef must be Gateway")
 		return ctrl.Result{}, r.Status().Update(ctx, &policy)
 	}
@@ -140,14 +142,14 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 		// Set owner reference to the current policy (for GC)
 		if err := controllerutil.SetControllerReference(&policy, authPolicy, r.Scheme); err != nil {
-			// ignore error if already owned
+			log.Error(err, "unable to set owner reference")
 		}
 
 		// Gateway target
 		authPolicy.Spec.TargetRef = gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName{
 			LocalPolicyTargetReference: gatewayapiv1alpha2.LocalPolicyTargetReference{
 				Group: "gateway.networking.k8s.io",
-				Kind:  "Gateway",
+				Kind:  gatewayKind,
 				Name:  gatewayapiv1.ObjectName(gateway.Name),
 			},
 		}

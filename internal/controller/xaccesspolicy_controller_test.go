@@ -58,7 +58,7 @@ var _ = Describe("XAccessPolicy Controller", func() {
 						TargetRefs: []agenticv1alpha1.TargetRef{
 							{
 								Group: "gateway.networking.k8s.io",
-								Kind:  "Gateway",
+								Kind:  gatewayKind,
 								Name:  "test-gateway",
 							},
 						},

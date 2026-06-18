@@ -68,7 +68,7 @@ var _ = BeforeSuite(func() {
 	err = kuadrantv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = gatewayapiv1.AddToScheme(scheme.Scheme)
+	err = gatewayapiv1.Install(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme
