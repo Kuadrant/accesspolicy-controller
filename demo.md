@@ -78,9 +78,9 @@ EOF
 The controller will intercept the `XAccessPolicy` and generate a Kuadrant `AuthPolicy`, transferring the CEL expression directly to a pattern matching rule.
 
 ```bash
-kubectl get authpolicy web-search-policy-auth -o yaml
+kubectl get authpolicy prod-mcp-gateway-auth -o yaml
 ```
-*Notice how the CEL expression maps exactly to `spec.rules.authorization["allow-search-web-only"].patternMatching.patterns[0].predicate`.*
+*Notice how the CEL expression maps exactly to `spec.authScheme.authorization["combined-rules"].patternMatching.patterns[0].predicate`.*
 
 ## 6. Verification
 Port-forward the Gateway and run some test requests. `mcp-gateway` parses the JSON body and extracts the tool name, allowing Authorino to evaluate the CEL predicate.
