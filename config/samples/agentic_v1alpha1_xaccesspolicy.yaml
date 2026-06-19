@@ -6,4 +6,13 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: xaccesspolicy-sample
 spec:
-  # TODO(user): Add fields here
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: mcp-gateway
+  rules:
+    - name: allow-search-web-only
+      authorization:
+        type: CEL
+        cel:
+          expression: "request.mcp.tool_name == 'search_web'"

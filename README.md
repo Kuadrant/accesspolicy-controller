@@ -1,16 +1,70 @@
-# accesspolicy
-// TODO(user): Add simple overview of use/purpose
+# XAccessPolicy Controller
+
+A Kubernetes controller that translates `XAccessPolicy` custom resources into Kuadrant `AuthPolicy` objects, enabling declarative, tool-level access control for MCP (Model Context Protocol) servers running behind [kuadrant/mcp-gateway](https://github.com/kuadrant/mcp-gateway).
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+
+The XAccessPolicy controller bridges the gap between high-level, gateway-agnostic MCP authorization intent and the concrete enforcement mechanisms provided by Kuadrant's Authorino. It watches `XAccessPolicy` resources that target `Gateway` objects and performs two key tasks:
+
+1. **CEL Translation** — Converts domain-specific variables like `request.mcp.tool_name` into the data-plane equivalents (`request.headers['x-mcp-toolname']`) that Authorino can evaluate at runtime.
+2. **Policy Aggregation** — Combines multiple `XAccessPolicy` rules targeting the same Gateway into a single Kuadrant `AuthPolicy`, satisfying Kuadrant's 1:1 policy-to-target constraint.
+
+### Architecture
+
+```
+┌──────────────┐     ┌────────────────────────┐     ┌────────────────┐
+│ XAccessPolicy│────▶│ AccessPolicy Controller│────▶│ AuthPolicy     │
+│ (user-facing)│     │  • CEL translation     │     │ (Kuadrant CRD) │
+└──────────────┘     │  • Syntax validation   │     └───────┬────────┘
+                     │  • Policy aggregation  │             │
+                     └────────────────────────┘             ▼
+                                                    ┌──────────────┐
+                                                    │  Authorino   │
+                                                    │ (enforcement)│
+                                                    └──────────────┘
+```
+
+### Example XAccessPolicy
+
+```yaml
+apiVersion: agentic.networking.x-k8s.io/v1alpha1
+kind: XAccessPolicy
+metadata:
+  name: web-search-policy
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: prod-mcp-gateway
+  rules:
+    - name: allow-search-web-only
+      authorization:
+        type: CEL
+        cel:
+          expression: "request.mcp.tool_name == 'search_web'"
+```
+
+The controller translates `request.mcp.tool_name` → `request.headers['x-mcp-toolname']` and produces an `AuthPolicy` with pattern-matching predicates that Authorino evaluates at the data plane.
+
+### Status Conditions
+
+The controller reports progress through standard Kubernetes conditions on each `XAccessPolicy`:
+
+| Condition | Meaning |
+|-----------|---------|
+| `Accepted` | The policy's CEL rules compiled successfully |
+| `ResolvedRefs` | The target Gateway was found in the cluster |
+| `Programmed` | The resulting AuthPolicy was successfully applied |
 
 ## Getting Started
 
 ### Prerequisites
-- go version v1.24.6+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+- Go v1.24.6+
+- Docker v17.03+
+- kubectl v1.11.3+
+- Access to a Kubernetes v1.11.3+ cluster
+- [Gateway API](https://gateway-api.sigs.k8s.io/) CRDs installed
+- [Kuadrant Operator](https://docs.kuadrant.io/) deployed (provides `AuthPolicy` CRD and Authorino)
 
 ### To Deploy on the cluster
 **Build and push your image to the location specified by `IMG`:**
@@ -21,7 +75,7 @@ make docker-build docker-push IMG=<some-registry>/accesspolicy:tag
 
 **NOTE:** This image ought to be published in the personal registry you specified.
 And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+Make sure you have the proper permission to the registry if the above commands don't work.
 
 **Install the CRDs into the cluster:**
 
@@ -45,8 +99,6 @@ You can apply the samples (examples) from the config/sample:
 kubectl apply -k config/samples/
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
-
 ### To Uninstall
 **Delete the instances (CRs) from the cluster:**
 
@@ -64,6 +116,44 @@ make uninstall
 
 ```sh
 make undeploy
+```
+
+## Running Locally
+
+For development, you can run the controller against your current kubeconfig context:
+
+```sh
+# Install CRDs
+make install
+
+# Run the controller locally
+make run
+```
+
+Then apply an `XAccessPolicy` in another terminal:
+
+```sh
+kubectl apply -f config/samples/agentic_v1alpha1_xaccesspolicy.yaml
+```
+
+## Testing
+
+Run all unit and integration tests (uses envtest for a real K8s API + etcd):
+
+```sh
+make test
+```
+
+Run only the translator unit tests:
+
+```sh
+go test ./internal/translator/...
+```
+
+Run the linter:
+
+```sh
+make lint
 ```
 
 ## Project Distribution
@@ -89,7 +179,7 @@ Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
 the project, i.e.:
 
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/accesspolicy/<tag or branch>/dist/install.yaml
+kubectl apply -f https://raw.githubusercontent.com/vibhor-5/accesspolicy-controller/<tag or branch>/dist/install.yaml
 ```
 
 ### By providing a Helm Chart
@@ -110,12 +200,23 @@ the '--force' flag and manually ensure that any custom configuration
 previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
 is manually re-applied afterwards.
 
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+## Project Layout
 
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+```
+├── api/v1alpha1/               # XAccessPolicy CRD types and deepcopy
+├── cmd/main.go                 # Manager entrypoint
+├── config/
+│   ├── crd/bases/              # Generated CRD manifests (do not edit)
+│   ├── rbac/                   # Generated RBAC (do not edit)
+│   └── samples/                # Example XAccessPolicy CRs
+├── internal/
+│   ├── controller/             # XAccessPolicy reconciler
+│   └── translator/             # CEL macro translation and validation
+├── design.md                   # Architecture and design decisions
+├── tasks.md                    # Implementation task breakdown
+├── implementation_guide.md     # Step-by-step implementation guide
+└── demo.md                     # End-to-end demo walkthrough
+```
 
 ## License
 
@@ -132,4 +233,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
