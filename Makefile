@@ -257,3 +257,15 @@ endef
 define gomodver
 $(shell go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' $(1) 2>/dev/null)
 endef
+
+##@ Quickstart
+
+.PHONY: quickstart
+quickstart: ## Run the full quickstart demo (requires GOOGLE_API_KEY).
+	@chmod +x quickstart/run-quickstart.sh
+	quickstart/run-quickstart.sh
+
+.PHONY: quickstart-clean
+quickstart-clean: ## Tear down the quickstart Kind cluster.
+	kind delete cluster --name accesspolicy-demo
+

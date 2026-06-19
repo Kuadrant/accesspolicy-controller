@@ -15,9 +15,9 @@ The XAccessPolicy controller bridges the gap between high-level, gateway-agnosti
 ┌──────────────┐     ┌────────────────────────┐     ┌────────────────┐
 │ XAccessPolicy│────▶│ AccessPolicy Controller│────▶│ AuthPolicy     │
 │ (user-facing)│     │  • CEL translation     │     │ (Kuadrant CRD) │
-└──────────────┘     │  • Syntax validation   │     └───────┬────────┘
-                     │  • Policy aggregation  │             │
-                     └────────────────────────┘             ▼
+└──────────────┘     │  • Policy aggregation  │     └───────┬────────┘
+                     └────────────────────────┘             │
+                                                            ▼
                                                     ┌──────────────┐
                                                     │  Authorino   │
                                                     │ (enforcement)│
@@ -55,6 +55,56 @@ The controller reports progress through standard Kubernetes conditions on each `
 | `Accepted` | The policy's CEL rules compiled successfully |
 | `ResolvedRefs` | The target Gateway was found in the cluster |
 | `Programmed` | The resulting AuthPolicy was successfully applied |
+## Quickstart
+
+The fastest way to see the controller in action is the one-command quickstart. It spins up a local Kind cluster with everything pre-configured — including an **AI agent with a chat UI** so you can interact with MCP tools and see access policies enforced in real time.
+
+### Prerequisites
+
+- [kind](https://kind.sigs.k8s.io/), [kubectl](https://kubernetes.io/docs/tasks/tools/), [Docker](https://docs.docker.com/get-docker/), [Go](https://go.dev/dl/), [Helm](https://helm.sh/docs/intro/install/)
+- A [Google API key](https://aistudio.google.com/apikey) for Gemini (used by the demo agent)
+
+### Run it
+
+```sh
+export GOOGLE_API_KEY=your-key-here
+make quickstart
+```
+
+This will:
+1. Create a Kind cluster (`accesspolicy-demo`)
+2. Install Gateway API CRDs and the Kuadrant operator
+3. Build & deploy the accesspolicy-controller
+4. Deploy an MCP server with sample tools (`get-sum`, `echo`, `get-tiny-image`, etc.)
+5. Deploy an AI agent with a **web UI** (Google ADK)
+6. Apply an `XAccessPolicy` that allows only `get-sum` and `echo`
+7. Port-forward the agent UI to `http://localhost:8081`
+
+### Try it
+
+Open `http://localhost:8081` and try these prompts:
+
+| Prompt | Tool Used | Expected Result |
+|--------|-----------|-----------------|
+| "What is the sum of 2 and 3?" | `get-sum` | ✅ Allowed |
+| "Echo back hello" | `echo` | ✅ Allowed |
+| "Get me a tiny image" | `get-tiny-image` | ❌ Blocked |
+
+### Dynamic policy updates
+
+Swap `echo` → `get-tiny-image` in the allow list with a single command:
+
+```sh
+kubectl apply -f quickstart/policy/updated-policy.yaml
+```
+
+Now `get-tiny-image` is ✅ allowed and `echo` is ❌ blocked — no restarts needed.
+
+### Cleanup
+
+```sh
+make quickstart-clean
+```
 
 ## Getting Started
 
@@ -212,24 +262,14 @@ is manually re-applied afterwards.
 ├── internal/
 │   ├── controller/             # XAccessPolicy reconciler
 │   └── translator/             # CEL macro translation and validation
+├── quickstart/                 # One-command demo environment
+│   ├── run-quickstart.sh       # Orchestration script (make quickstart)
+│   ├── kind-config.yaml        # Kind cluster config
+│   ├── agent/                  # ADK-based AI agent with web UI
+│   ├── mcpserver/              # MCP "everything" server
+│   └── policy/                 # Sample Gateway + XAccessPolicy resources
 ├── design.md                   # Architecture and design decisions
 ├── tasks.md                    # Implementation task breakdown
 ├── implementation_guide.md     # Step-by-step implementation guide
 └── demo.md                     # End-to-end demo walkthrough
 ```
-
-## License
-
-Copyright 2026.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.

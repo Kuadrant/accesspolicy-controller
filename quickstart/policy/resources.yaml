@@ -1,0 +1,34 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: demo-gateway
+  namespace: quickstart-ns
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 8080
+---
+apiVersion: agentic.agentic.networking.x-k8s.io/v1alpha1
+kind: XAccessPolicy
+metadata:
+  name: demo-access-policy
+  namespace: quickstart-ns
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: demo-gateway
+  rules:
+    - name: allow-get-sum
+      authorization:
+        type: CEL
+        cel:
+          expression: "request.mcp.tool_name == 'get-sum'"
+    - name: allow-echo
+      authorization:
+        type: CEL
+        cel:
+          expression: "request.mcp.tool_name == 'echo'"
