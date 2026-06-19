@@ -268,8 +268,10 @@ is manually re-applied afterwards.
 │   ├── agent/                  # ADK-based AI agent with web UI
 │   ├── mcpserver/              # MCP "everything" server
 │   └── policy/                 # Sample Gateway + XAccessPolicy resources
-├── design.md                   # Architecture and design decisions
-├── tasks.md                    # Implementation task breakdown
-├── implementation_guide.md     # Step-by-step implementation guide
-└── demo.md                     # End-to-end demo walkthrough
+└── docs/                       # Project documentation
+    ├── user_guide.md           # How to use XAccessPolicy and write CEL rules
+    ├── design.md               # Architecture and design decisions
+    ├── tasks.md                # Implementation task breakdown
+    ├── implementation_guide.md # Step-by-step implementation guide
+    └── demo.md                 # End-to-end demo walkthrough
 ```
