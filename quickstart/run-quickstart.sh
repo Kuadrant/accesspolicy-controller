@@ -219,18 +219,30 @@ lsof -ti ":${PORT_FORWARD_PORT}" 2>/dev/null | xargs -r kill 2>/dev/null || true
 info "Waiting for the istio gateway deployment to be ready..."
 kubectl wait --for=condition=available --timeout=120s deployment/demo-gateway-istio -n quickstart-ns || true
 
-# Kill any existing port-forwards
+# Kill any existing port-forwards and proxies
 pkill -f "kubectl port-forward svc/demo-gateway-istio" || true
+pkill -f "node ${SCRIPT_DIR}/proxy.js" || true
 
-# Start port-forward in background
-kubectl port-forward svc/demo-gateway-istio 8080:8080 -n quickstart-ns >/dev/null 2>&1 &
+# Start port-forward on port 8081 in background
+kubectl port-forward svc/demo-gateway-istio 8081:8080 -n quickstart-ns >/dev/null 2>&1 &
 PF_PID=$!
 sleep 2
 
 if kill -0 "${PF_PID}" 2>/dev/null; then
-  success "Port-forward active (PID ${PF_PID})"
+  success "Port-forward active (PID ${PF_PID}) on port 8081"
 else
   warn "Port-forward may have failed — check manually"
+fi
+
+# Start the header-injecting proxy on port 8080
+node "${SCRIPT_DIR}/proxy.js" >/dev/null 2>&1 &
+PROXY_PID=$!
+sleep 1
+
+if kill -0 "${PROXY_PID}" 2>/dev/null; then
+  success "MCP Proxy active (PID ${PROXY_PID}) on port 8080"
+else
+  warn "Proxy may have failed — check manually"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
