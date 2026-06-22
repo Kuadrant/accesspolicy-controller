@@ -8,10 +8,9 @@ import (
 	"github.com/google/cel-go/ext"
 )
 
-// TranslateCEL converts domain-specific MCP variables to the Envoy AuthZ header context
 func TranslateCEL(expression string) string {
-	// Replace abstract tool_name with the header injected by mcp-broker-router
-	expr := strings.ReplaceAll(expression, "request.mcp.tool_name", "request.headers['x-mcp-toolname']")
+	// Replace abstract tool_name with a safe header lookup to avoid "no such key" errors
+	expr := strings.ReplaceAll(expression, "request.mcp.tool_name", "('x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] : '')")
 	return expr
 }
 
