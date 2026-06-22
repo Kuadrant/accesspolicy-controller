@@ -13,12 +13,12 @@ func TestTranslateCEL(t *testing.T) {
 		{
 			name:     "substitute tool_name",
 			input:    "request.mcp.tool_name == 'search_web'",
-			expected: "request.headers['x-mcp-toolname'] == 'search_web'",
+			expected: "('x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] : '') == 'search_web'",
 		},
 		{
 			name:     "multiple substitutions",
 			input:    "request.mcp.tool_name == 'search_web' || request.mcp.tool_name == 'read_file'",
-			expected: "request.headers['x-mcp-toolname'] == 'search_web' || request.headers['x-mcp-toolname'] == 'read_file'",
+			expected: "('x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] : '') == 'search_web' || ('x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] : '') == 'read_file'",
 		},
 		{
 			name:     "no substitution needed",
