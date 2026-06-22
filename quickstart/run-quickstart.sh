@@ -3,7 +3,8 @@ set -euo pipefail
 
 # ============================================================================
 # accesspolicy-controller quickstart
-# Sets up a complete demo environment with Kind, Kuadrant, MCP server & agent
+# Sets up a complete demo environment with Kind, Kuadrant, MCP Gateway,
+# and the MCP Inspector.
 # ============================================================================
 
 # ── Colors & formatting ─────────────────────────────────────────────────────
@@ -35,10 +36,9 @@ fail()    { echo -e "  ${RED}✖${RESET}  ${1}"; exit 1; }
 CLUSTER_NAME="accesspolicy-demo"
 CONTROLLER_IMG="accesspolicy-controller:demo"
 MCP_SERVER_IMG="accesspolicy-mcp-server:demo"
-AGENT_IMG="accesspolicy-agent:demo"
 NAMESPACE="quickstart-ns"
 GATEWAY_API_VERSION="v1.2.0"
-PORT_FORWARD_PORT=8081
+PORT_FORWARD_PORT=8080
 
 # Resolve project root (the directory containing this script's parent)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,7 +50,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 step "Checking prerequisites"
 
 MISSING=()
-for cmd in kind kubectl docker go helm; do
+for cmd in kind kubectl docker go helm npx; do
   if command -v "${cmd}" &>/dev/null; then
     success "${cmd} $(${cmd} version --short 2>/dev/null || ${cmd} version --client 2>/dev/null | head -1 || echo 'found')"
   else
@@ -62,11 +62,6 @@ done
 if [[ ${#MISSING[@]} -gt 0 ]]; then
   fail "Missing required tools: ${MISSING[*]}. Please install them and re-run."
 fi
-
-if [[ -z "${GOOGLE_API_KEY:-}" ]]; then
-  fail "GOOGLE_API_KEY environment variable is not set.\n  Export it before running: ${BOLD}export GOOGLE_API_KEY=your-key${RESET}"
-fi
-success "GOOGLE_API_KEY is set"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 2: Create Kind cluster
@@ -93,9 +88,9 @@ kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/downlo
 success "Gateway API CRDs installed"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 4: Install Kuadrant operator
+# Step 4: Install Kuadrant & MCP Gateway
 # ─────────────────────────────────────────────────────────────────────────────
-step "Installing Kuadrant operator via Helm"
+step "Installing Kuadrant and MCP Gateway via Helm"
 
 helm repo add kuadrant https://kuadrant.io/helm-charts/ 2>/dev/null || true
 helm repo update kuadrant
@@ -109,6 +104,17 @@ else
     --kube-context "kind-${CLUSTER_NAME}" \
     --wait --timeout 5m
   success "Kuadrant operator installed"
+fi
+
+if helm status mcp-gateway --namespace mcp-system --kube-context "kind-${CLUSTER_NAME}" &>/dev/null; then
+  warn "MCP Gateway already installed — skipping"
+else
+  helm install mcp-gateway kuadrant/mcp-gateway \
+    --namespace mcp-system \
+    --create-namespace \
+    --kube-context "kind-${CLUSTER_NAME}" \
+    --wait --timeout 5m
+  success "MCP Gateway installed"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -176,56 +182,30 @@ kubectl rollout status deployment/mcp-server \
 success "MCP server deployed and ready"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 11: Build & load agent image
-# ─────────────────────────────────────────────────────────────────────────────
-step "Building agent image (${AGENT_IMG})"
-
-docker build -t "${AGENT_IMG}" "${SCRIPT_DIR}/agent"
-kind load docker-image "${AGENT_IMG}" --name "${CLUSTER_NAME}"
-success "Agent image built and loaded into Kind"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 12: Apply policy resources (Gateway + XAccessPolicy)
+# Step 11: Apply policy resources (Gateway + HTTPRoute + XAccessPolicy)
 # ─────────────────────────────────────────────────────────────────────────────
 step "Applying Gateway & XAccessPolicy"
 
 kubectl apply -f "${SCRIPT_DIR}/policy/resources.yaml" --context "kind-${CLUSTER_NAME}"
-success "Gateway and XAccessPolicy applied"
+success "Gateway, HTTPRoute, and XAccessPolicy applied"
 
 info "Waiting for XAccessPolicy to be accepted..."
 sleep 3
 kubectl get xaccesspolicies -n "${NAMESPACE}" --context "kind-${CLUSTER_NAME}" || true
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 13: Deploy agent
+# Step 12: Port-forward Gateway service
 # ─────────────────────────────────────────────────────────────────────────────
-step "Deploying agent"
-
-kubectl create secret generic google-api-key \
-  --from-literal=api-key="${GOOGLE_API_KEY}" \
-  -n "${NAMESPACE}" \
-  --context "kind-${CLUSTER_NAME}" \
-  --dry-run=client -o yaml \
-  | kubectl apply -f - --context "kind-${CLUSTER_NAME}"
-success "Google API key secret created"
-
-kubectl apply -f "${SCRIPT_DIR}/agent/deployment.yaml" --context "kind-${CLUSTER_NAME}"
-info "Waiting for agent deployment to be ready..."
-kubectl rollout status deployment/mcp-agent \
-  -n "${NAMESPACE}" \
-  --context "kind-${CLUSTER_NAME}" \
-  --timeout=120s
-success "Agent deployed and ready"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 14: Port-forward agent service
-# ─────────────────────────────────────────────────────────────────────────────
-step "Setting up port-forward (localhost:${PORT_FORWARD_PORT} → agent:80)"
+step "Setting up port-forward (localhost:${PORT_FORWARD_PORT} → gateway:8080)"
 
 # Kill any existing port-forward on the same port
 lsof -ti ":${PORT_FORWARD_PORT}" 2>/dev/null | xargs -r kill 2>/dev/null || true
 
-kubectl port-forward svc/mcp-agent "${PORT_FORWARD_PORT}:80" \
+# Wait until the gateway proxy deployment exists
+info "Waiting for the mcp-gateway envoy deployment to be ready..."
+kubectl wait --for=condition=available deployment/mcp-gateway-demo-gateway -n "${NAMESPACE}" --timeout=120s || true
+
+kubectl port-forward svc/mcp-gateway-demo-gateway "${PORT_FORWARD_PORT}:8080" \
   -n "${NAMESPACE}" \
   --context "kind-${CLUSTER_NAME}" &
 PF_PID=$!
@@ -238,34 +218,36 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 15: Print instructions
+# Step 13: Print instructions
 # ─────────────────────────────────────────────────────────────────────────────
 step "Quickstart ready!"
 
 echo ""
 echo -e "${GREEN}${BOLD}  ✅  accesspolicy-controller demo is running!${RESET}"
 echo ""
-echo -e "  ${BOLD}Agent UI:${RESET}  ${CYAN}http://localhost:${PORT_FORWARD_PORT}${RESET}"
+echo -e "  To visualize the policy enforcement, run the official MCP Inspector in a new terminal:"
+echo -e "  ${CYAN}npx -y @modelcontextprotocol/inspector http://localhost:${PORT_FORWARD_PORT}/sse${RESET}"
 echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-echo -e "${BOLD}  Try these prompts in the agent UI:${RESET}"
+echo -e "${BOLD}  Try calling tools from the Inspector UI:${RESET}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
-printf "  ${BOLD}%-40s %-20s %-15s${RESET}\n" "Prompt" "Tool" "Expected"
-printf "  ${DIM}%-40s %-20s %-15s${RESET}\n" "────────────────────────────────────────" "────────────────────" "───────────────"
-printf "  %-40s %-20s ${GREEN}%-15s${RESET}\n" "What is the sum of 2 and 3?" "get-sum" "✅ Allowed"
-printf "  %-40s %-20s ${GREEN}%-15s${RESET}\n" "Echo back hello" "echo" "✅ Allowed"
-printf "  %-40s %-20s ${RED}%-15s${RESET}\n" "Get me a tiny image" "get-tiny-image" "❌ Blocked"
+printf "  ${BOLD}%-20s %-15s${RESET}\n" "Tool" "Expected"
+printf "  ${DIM}%-20s %-15s${RESET}\n" "────────────────────" "───────────────"
+printf "  %-20s ${GREEN}%-15s${RESET}\n" "get-sum" "✅ Allowed"
+printf "  %-20s ${GREEN}%-15s${RESET}\n" "echo" "✅ Allowed"
+printf "  %-20s ${RED}%-15s${RESET}\n" "get-tiny-image" "❌ Blocked"
 echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo -e "  ${BOLD}Dynamic policy update:${RESET}"
 echo -e "  ${CYAN}kubectl apply -f quickstart/policy/updated-policy.yaml${RESET}"
 echo ""
 echo -e "  This swaps ${YELLOW}echo${RESET} → ${YELLOW}get-tiny-image${RESET} in the allow list."
-echo -e "  After applying, ${GREEN}get-tiny-image${RESET} will be ${GREEN}✅ Allowed${RESET}"
-echo -e "  and ${RED}echo${RESET} will be ${RED}❌ Blocked${RESET}."
+echo -e "  After applying, you can retry in the MCP Inspector immediately without reconnecting:"
+echo -e "  ${GREEN}get-tiny-image${RESET} will be ${GREEN}✅ Allowed${RESET}"
+echo -e "  ${RED}echo${RESET} will be ${RED}❌ Blocked${RESET}."
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
-echo -e "  ${DIM}Cleanup: kind delete cluster --name ${CLUSTER_NAME}${RESET}"
+echo -e "  ${DIM}Cleanup: make quickstart-clean${RESET}"
 echo -e "  ${DIM}Logs:    kubectl logs -n accesspolicy-system deployment/accesspolicy-controller-manager -c manager -f${RESET}"
 echo ""

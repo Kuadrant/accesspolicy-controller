@@ -1,7 +1,7 @@
-# Demo Walkthrough: XAccessPolicy to AuthPolicy Standalone Controller
+# Demo Walkthrough: XAccessPolicy with MCP Inspector
 
 ## Objective
-Demonstrate how the standalone controller converts an `XAccessPolicy` targeting a `Gateway` into a Kuadrant `AuthPolicy`, mapping native CEL expressions directly to dynamically enforce tool-level access on `mcp-gateway`.
+Demonstrate how the standalone controller converts an `XAccessPolicy` targeting a `Gateway` into a Kuadrant `AuthPolicy`, mapping native CEL expressions directly to dynamically enforce tool-level access on `mcp-gateway`. We will use the **MCP Inspector** to visually verify the allowed and blocked tool calls.
 
 ## 1. Local Cluster Setup
 Spin up a local `kind` cluster and install the necessary dependencies:
@@ -31,74 +31,105 @@ kind load docker-image accesspolicy-controller:demo --name accesspolicy-demo
 make deploy IMG=accesspolicy-controller:demo
 ```
 
-## 3. Apply the Infrastructure (Gateway & Backend)
-We will define a generic Gateway that uses `mcp-gateway` as its class.
+## 3. Deploy an MCP Server
+Deploy a sample MCP server that exposes tools like `get-sum` and `echo`.
+*(We assume you have built an `accesspolicy-mcp-server:demo` image loaded into Kind.)*
+
+```bash
+kubectl create namespace quickstart-ns
+kubectl apply -f quickstart/mcpserver/deployment.yaml
+```
+
+## 4. Apply the Infrastructure (Gateway & HTTPRoute)
+We will define a Gateway that uses `mcp-gateway` as its class, and an `HTTPRoute` routing to the MCP server.
 
 ```bash
 cat <<EOF | kubectl apply -f -
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: prod-mcp-gateway
-  namespace: default
+  name: demo-gateway
+  namespace: quickstart-ns
 spec:
   gatewayClassName: mcp-gateway
   listeners:
     - name: http
       protocol: HTTP
       port: 8080
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mcp-route
+  namespace: quickstart-ns
+spec:
+  parentRefs:
+    - name: demo-gateway
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: mcp-server
+          port: 3001
 EOF
 ```
 
-## 4. Apply the XAccessPolicy
-Apply an `XAccessPolicy` that allows only the `search_web` tool using a CEL expression.
+## 5. Apply the XAccessPolicy
+Apply an `XAccessPolicy` that allows only `get-sum` using a CEL expression.
 
 ```bash
 cat <<EOF | kubectl apply -f -
-apiVersion: agentic.networking.x-k8s.io/v1alpha1
+apiVersion: agentic.agentic.networking.x-k8s.io/v1alpha1
 kind: XAccessPolicy
 metadata:
-  name: web-search-policy
-  namespace: default
+  name: demo-access-policy
+  namespace: quickstart-ns
 spec:
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
-      name: prod-mcp-gateway
+      name: demo-gateway
   rules:
-    - name: allow-search-web-only
+    - name: allow-get-sum
       authorization:
         type: CEL
         cel:
-          expression: "request.mcp.tool_name == 'search_web'"
+          expression: "request.mcp.tool_name == 'get-sum'"
 EOF
 ```
 
-## 5. Observe the Generated AuthPolicy
+## 6. Observe the Generated AuthPolicy
 The controller will intercept the `XAccessPolicy` and generate a Kuadrant `AuthPolicy`, transferring the CEL expression directly to a pattern matching rule.
 
 ```bash
-kubectl get authpolicy prod-mcp-gateway-auth -o yaml
+kubectl get authpolicy demo-gateway-auth -n quickstart-ns -o yaml
 ```
 *Notice how the CEL expression maps exactly to `spec.authScheme.authorization["combined-rules"].patternMatching.patterns[0].predicate`.*
 
-## 6. Verification
-Port-forward the Gateway and run some test requests. `mcp-gateway` parses the JSON body and extracts the tool name, allowing Authorino to evaluate the CEL predicate.
+## 7. Verification with MCP Inspector
+Port-forward the Envoy Gateway proxy and run the official MCP Inspector.
 
-**Allowed Request:**
 ```bash
-kubectl port-forward svc/mcp-gateway-prod-mcp-gateway 8080:8080 &
+# Port-forward the gateway
+kubectl port-forward svc/mcp-gateway-demo-gateway 8080:8080 -n quickstart-ns &
 
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"method": "tools/call", "params": {"name": "search_web", "arguments": {"query": "kubernetes"}}}'
-# Output: HTTP 200 OK (Assuming upstream mock is ready)
+# Launch MCP Inspector connecting to the Gateway via SSE
+npx -y @modelcontextprotocol/inspector http://localhost:8080/sse
 ```
 
-**Denied Request:**
-```bash
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"method": "tools/call", "params": {"name": "delete_database", "arguments": {}}}'
-# Output: HTTP 403 Forbidden (Blocked by Authorino based on the generated AuthPolicy CEL rule)
-```
+### In the Inspector UI:
+1. **Try `get-sum`**: Select the `get-sum` tool and execute it.
+   - **Result**: ✅ The request succeeds, and you get a response back because Authorino allowed the request based on the generated `AuthPolicy`.
+2. **Try `get-tiny-image`**: Select a tool NOT in your `XAccessPolicy`.
+   - **Result**: ❌ The request instantly fails with a `403 Forbidden` error. Authorino drops it at the Gateway before it ever reaches the backend MCP server!
+
+## 8. Dynamic Updates
+To prove the controller updates Authorino instantly:
+1. Edit the `XAccessPolicy` in Kubernetes to add `request.mcp.tool_name == 'get-tiny-image'`.
+2. Go back to the Inspector UI (no need to restart) and click `get-tiny-image` again.
+3. ✅ It now succeeds!

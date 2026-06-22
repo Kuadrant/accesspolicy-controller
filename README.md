@@ -57,38 +57,41 @@ The controller reports progress through standard Kubernetes conditions on each `
 | `Programmed` | The resulting AuthPolicy was successfully applied |
 ## Quickstart
 
-The fastest way to see the controller in action is the one-command quickstart. It spins up a local Kind cluster with everything pre-configured — including an **AI agent with a chat UI** so you can interact with MCP tools and see access policies enforced in real time.
+The fastest way to see the controller in action is the one-command quickstart. It spins up a local Kind cluster with everything pre-configured — including Kuadrant, the MCP Gateway, and a sample MCP server. We then use the **official MCP Inspector** to interact with the tools and see access policies enforced in real time.
 
 ### Prerequisites
 
-- [kind](https://kind.sigs.k8s.io/), [kubectl](https://kubernetes.io/docs/tasks/tools/), [Docker](https://docs.docker.com/get-docker/), [Go](https://go.dev/dl/), [Helm](https://helm.sh/docs/intro/install/)
-- A [Google API key](https://aistudio.google.com/apikey) for Gemini (used by the demo agent)
+- [kind](https://kind.sigs.k8s.io/), [kubectl](https://kubernetes.io/docs/tasks/tools/), [Docker](https://docs.docker.com/get-docker/), [Go](https://go.dev/dl/), [Helm](https://helm.sh/docs/intro/install/), [Node.js / npx](https://nodejs.org/)
 
 ### Run it
 
 ```sh
-export GOOGLE_API_KEY=your-key-here
 make quickstart
 ```
 
 This will:
 1. Create a Kind cluster (`accesspolicy-demo`)
-2. Install Gateway API CRDs and the Kuadrant operator
+2. Install Gateway API CRDs, the Kuadrant operator, and MCP Gateway
 3. Build & deploy the accesspolicy-controller
 4. Deploy an MCP server with sample tools (`get-sum`, `echo`, `get-tiny-image`, etc.)
-5. Deploy an AI agent with a **web UI** (Google ADK)
-6. Apply an `XAccessPolicy` that allows only `get-sum` and `echo`
-7. Port-forward the agent UI to `http://localhost:8081`
+5. Apply an `XAccessPolicy` that allows only `get-sum` and `echo`
+6. Port-forward the Envoy Gateway to `localhost:8080`
 
 ### Try it
 
-Open `http://localhost:8081` and try these prompts:
+Open a new terminal and run the official MCP Inspector to connect to the Gateway:
 
-| Prompt | Tool Used | Expected Result |
-|--------|-----------|-----------------|
-| "What is the sum of 2 and 3?" | `get-sum` | ✅ Allowed |
-| "Echo back hello" | `echo` | ✅ Allowed |
-| "Get me a tiny image" | `get-tiny-image` | ❌ Blocked |
+```sh
+npx -y @modelcontextprotocol/inspector http://localhost:8080/sse
+```
+
+In the Inspector UI, try calling the tools:
+
+| Tool Used | Expected Result |
+|-----------|-----------------|
+| `get-sum` | ✅ Allowed |
+| `echo` | ✅ Allowed |
+| `get-tiny-image` | ❌ Blocked |
 
 ### Dynamic policy updates
 
