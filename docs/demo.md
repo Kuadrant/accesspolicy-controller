@@ -128,7 +128,7 @@ Port-forward the Envoy Gateway proxy and run the official MCP Inspector.
 kubectl port-forward svc/demo-gateway-istio 8080:8080 -n quickstart-ns &
 
 # Launch MCP Inspector connecting to the Gateway via SSE
-npx -y @modelcontextprotocol/inspector http://localhost:8080/sse
+npx -y @modelcontextprotocol/inspector --transport sse --server-url http://localhost:8080/sse
 ```
 
 ### In the Inspector UI:
