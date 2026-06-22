@@ -1,7 +1,3 @@
----
-# Updated policy: swaps 'echo' for 'get-tiny-image' to demonstrate
-# dynamic policy updates. Apply with:
-#   kubectl apply -f quickstart/policy/updated-policy.yaml
 apiVersion: agentic.agentic.networking.x-k8s.io/v1alpha1
 kind: XAccessPolicy
 metadata:
@@ -18,11 +14,11 @@ spec:
         type: CEL
         cel:
           expression: "request.mcp.tool_name == 'get-sum'"
-    - name: allow-get-tiny-image
+    - name: allow-echo
       authorization:
         type: CEL
         cel:
-          expression: "request.mcp.tool_name == 'get-tiny-image'"
+          expression: "request.mcp.tool_name == 'echo'"
     - name: allow-non-tools
       authorization:
         type: CEL
