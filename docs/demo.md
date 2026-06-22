@@ -11,14 +11,23 @@ Spin up a local `kind` cluster and install the necessary dependencies:
 kind create cluster --name accesspolicy-demo
 
 # Install Gateway API
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/experimental-install.yaml
+
+# Install Istio
+helm repo add istio https://istio-release.storage.googleapis.com/charts
+helm repo update
+helm install istio-base istio/base -n istio-system --create-namespace --wait
+helm install istiod istio/istiod -n istio-system --wait
 
 # Install Kuadrant Operator (provides AuthPolicy CRD and Authorino)
 helm repo add kuadrant https://kuadrant.io/helm-charts
 helm install kuadrant-operator kuadrant/kuadrant-operator --namespace kuadrant-system --create-namespace
 
-# Deploy MCP Gateway
-helm install mcp-gateway kuadrant/mcp-gateway --namespace mcp-system --create-namespace
+# Deploy MCP Gateway Early Preview
+kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/crd?ref=main'
+sleep 2
+kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=main'
+kubectl patch clusterrole mcp-controller --type='json' -p='[{"op": "add", "path": "/rules/-", "value": {"apiGroups": ["apps"], "resources": ["deployments"], "verbs": ["get", "list", "watch", "update", "patch"]}}]'
 ```
 
 ## 2. Deploy the AccessPolicy Controller
@@ -41,7 +50,7 @@ kubectl apply -f quickstart/mcpserver/deployment.yaml
 ```
 
 ## 4. Apply the Infrastructure (Gateway & HTTPRoute)
-We will define a Gateway that uses `mcp-gateway` as its class, and an `HTTPRoute` routing to the MCP server.
+We will define a Gateway that uses Istio as its class, and an `HTTPRoute` routing to the MCP server.
 
 ```bash
 cat <<EOF | kubectl apply -f -
@@ -51,7 +60,7 @@ metadata:
   name: demo-gateway
   namespace: quickstart-ns
 spec:
-  gatewayClassName: mcp-gateway
+  gatewayClassName: istio
   listeners:
     - name: http
       protocol: HTTP
@@ -84,7 +93,7 @@ Apply an `XAccessPolicy` that allows only `get-sum` using a CEL expression.
 
 ```bash
 cat <<EOF | kubectl apply -f -
-apiVersion: agentic.agentic.networking.x-k8s.io/v1alpha1
+apiVersion: agentic.networking.x-k8s.io/v1alpha1
 kind: XAccessPolicy
 metadata:
   name: demo-access-policy
@@ -116,7 +125,7 @@ Port-forward the Envoy Gateway proxy and run the official MCP Inspector.
 
 ```bash
 # Port-forward the gateway
-kubectl port-forward svc/mcp-gateway-demo-gateway 8080:8080 -n quickstart-ns &
+kubectl port-forward svc/demo-gateway-istio 8080:8080 -n quickstart-ns &
 
 # Launch MCP Inspector connecting to the Gateway via SSE
 npx -y @modelcontextprotocol/inspector http://localhost:8080/sse

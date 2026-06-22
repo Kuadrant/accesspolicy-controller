@@ -83,14 +83,24 @@ success "kubectl context set to kind-${CLUSTER_NAME}"
 # ─────────────────────────────────────────────────────────────────────────────
 step "Installing Gateway API CRDs (${GATEWAY_API_VERSION})"
 
-kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml" \
+kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/experimental-install.yaml" \
   --context "kind-${CLUSTER_NAME}"
 success "Gateway API CRDs installed"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 4: Install Kuadrant & MCP Gateway
+# Step 4: Install Istio, Kuadrant & MCP Gateway
 # ─────────────────────────────────────────────────────────────────────────────
-step "Installing Kuadrant and MCP Gateway via Helm"
+step "Installing Istio, Kuadrant, and MCP Gateway"
+
+helm repo add istio https://istio-release.storage.googleapis.com/charts 2>/dev/null || true
+helm repo update istio
+
+helm install istio-base istio/base -n istio-system --create-namespace --wait
+helm install istiod istio/istiod -n istio-system \
+  --set pilot.resources.requests.memory=256Mi \
+  --set pilot.resources.requests.cpu=100m \
+  --wait
+success "Istio installed"
 
 helm repo add kuadrant https://kuadrant.io/helm-charts/ 2>/dev/null || true
 helm repo update kuadrant
@@ -106,16 +116,13 @@ else
   success "Kuadrant operator installed"
 fi
 
-if helm status mcp-gateway --namespace mcp-system --kube-context "kind-${CLUSTER_NAME}" &>/dev/null; then
-  warn "MCP Gateway already installed — skipping"
-else
-  helm install mcp-gateway kuadrant/mcp-gateway \
-    --namespace mcp-system \
-    --create-namespace \
-    --kube-context "kind-${CLUSTER_NAME}" \
-    --wait --timeout 5m
-  success "MCP Gateway installed"
-fi
+kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/crd?ref=main' --context "kind-${CLUSTER_NAME}"
+sleep 2 # wait for CRDs to register
+kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=main' --context "kind-${CLUSTER_NAME}" || kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=main' --context "kind-${CLUSTER_NAME}"
+
+# Fix upstream RBAC bug in mcp-gateway early preview
+kubectl patch clusterrole mcp-controller --type='json' -p='[{"op": "add", "path": "/rules/-", "value": {"apiGroups": ["apps"], "resources": ["deployments"], "verbs": ["get", "list", "watch", "update", "patch"]}}]' --context "kind-${CLUSTER_NAME}"
+success "MCP Gateway components installed"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 5: Build & load controller image
@@ -201,13 +208,15 @@ step "Setting up port-forward (localhost:${PORT_FORWARD_PORT} → gateway:8080)"
 # Kill any existing port-forward on the same port
 lsof -ti ":${PORT_FORWARD_PORT}" 2>/dev/null | xargs -r kill 2>/dev/null || true
 
-# Wait until the gateway proxy deployment exists
-info "Waiting for the mcp-gateway envoy deployment to be ready..."
-kubectl wait --for=condition=available deployment/mcp-gateway-demo-gateway -n "${NAMESPACE}" --timeout=120s || true
+# Wait until the istio gateway deployment is ready
+info "Waiting for the istio gateway deployment to be ready..."
+kubectl wait --for=condition=available --timeout=120s deployment/demo-gateway-istio -n quickstart-ns || true
 
-kubectl port-forward svc/mcp-gateway-demo-gateway "${PORT_FORWARD_PORT}:8080" \
-  -n "${NAMESPACE}" \
-  --context "kind-${CLUSTER_NAME}" &
+# Kill any existing port-forwards
+pkill -f "kubectl port-forward svc/demo-gateway-istio" || true
+
+# Start port-forward in background
+kubectl port-forward svc/demo-gateway-istio 8080:8080 -n quickstart-ns >/dev/null 2>&1 &
 PF_PID=$!
 sleep 2
 

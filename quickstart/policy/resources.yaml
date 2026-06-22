@@ -5,7 +5,7 @@ metadata:
   name: demo-gateway
   namespace: quickstart-ns
 spec:
-  gatewayClassName: mcp-gateway
+  gatewayClassName: istio
   listeners:
     - name: http
       protocol: HTTP
