@@ -5,7 +5,7 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - agentic.networking.x-k8s.io
+  - agentic.agentic.networking.x-k8s.io
   resources:
   - xaccesspolicies
   verbs:
@@ -17,13 +17,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - agentic.networking.x-k8s.io
+  - agentic.agentic.networking.x-k8s.io
   resources:
   - xaccesspolicies/finalizers
   verbs:
   - update
 - apiGroups:
-  - agentic.networking.x-k8s.io
+  - agentic.agentic.networking.x-k8s.io
   resources:
   - xaccesspolicies/status
   verbs:

@@ -23,6 +23,14 @@ helm install istiod istio/istiod -n istio-system --wait
 helm repo add kuadrant https://kuadrant.io/helm-charts
 helm install kuadrant-operator kuadrant/kuadrant-operator --namespace kuadrant-system --create-namespace
 
+cat <<EOF | kubectl apply -f -
+apiVersion: kuadrant.io/v1beta1
+kind: Kuadrant
+metadata:
+  name: kuadrant
+  namespace: kuadrant-system
+EOF
+
 # Deploy MCP Gateway Early Preview
 kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/crd?ref=main'
 sleep 2

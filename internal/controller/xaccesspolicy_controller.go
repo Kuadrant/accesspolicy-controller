@@ -50,9 +50,9 @@ type XAccessPolicyReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=agentic.networking.x-k8s.io,resources=xaccesspolicies,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=agentic.networking.x-k8s.io,resources=xaccesspolicies/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=agentic.networking.x-k8s.io,resources=xaccesspolicies/finalizers,verbs=update
+// +kubebuilder:rbac:groups=agentic.agentic.networking.x-k8s.io,resources=xaccesspolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=agentic.agentic.networking.x-k8s.io,resources=xaccesspolicies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=agentic.agentic.networking.x-k8s.io,resources=xaccesspolicies/finalizers,verbs=update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch
 // +kubebuilder:rbac:groups=kuadrant.io,resources=authpolicies,verbs=get;list;watch;create;update;patch;delete
 

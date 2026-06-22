@@ -113,6 +113,14 @@ else
     --create-namespace \
     --kube-context "kind-${CLUSTER_NAME}" \
     --wait --timeout 5m
+  
+  cat <<EOF | kubectl apply --context "kind-${CLUSTER_NAME}" -f -
+apiVersion: kuadrant.io/v1beta1
+kind: Kuadrant
+metadata:
+  name: kuadrant
+  namespace: kuadrant-system
+EOF
   success "Kuadrant operator installed"
 fi
 
