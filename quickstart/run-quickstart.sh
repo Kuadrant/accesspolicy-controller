@@ -92,11 +92,10 @@ success "Gateway API CRDs installed"
 # ─────────────────────────────────────────────────────────────────────────────
 step "Installing Istio, Kuadrant, and MCP Gateway"
 
-helm repo add istio https://istio-release.storage.googleapis.com/charts 2>/dev/null || true
+helm repo add istio https://istio-release.storage.googleapis.com/charts
 helm repo update istio
-
-helm install istio-base istio/base -n istio-system --create-namespace --wait
-helm install istiod istio/istiod -n istio-system \
+helm upgrade --install istio-base istio/base -n istio-system --create-namespace --wait
+helm upgrade --install istiod istio/istiod -n istio-system \
   --set pilot.resources.requests.memory=256Mi \
   --set pilot.resources.requests.cpu=100m \
   --wait
@@ -108,7 +107,7 @@ helm repo update kuadrant
 if helm status kuadrant --namespace kuadrant-system --kube-context "kind-${CLUSTER_NAME}" &>/dev/null; then
   warn "Kuadrant already installed — skipping"
 else
-  helm install kuadrant kuadrant/kuadrant-operator \
+  helm upgrade --install kuadrant kuadrant/kuadrant-operator \
     --namespace kuadrant-system \
     --create-namespace \
     --kube-context "kind-${CLUSTER_NAME}" \

@@ -25,6 +25,9 @@ spec:
         - name: mcp-server
           image: accesspolicy-mcp-server:demo
           imagePullPolicy: Never
+          env:
+            - name: PORT
+              value: "3001"
           ports:
             - containerPort: 3001
               protocol: TCP

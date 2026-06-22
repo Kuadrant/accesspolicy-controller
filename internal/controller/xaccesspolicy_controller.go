@@ -93,7 +93,7 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	var combinedPredicates []authorinov1beta3.PatternExpressionOrRef
+	var validPredicates []string
 	allValid := true
 
 	for i := range policyList.Items {
@@ -118,12 +118,25 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 			r.updateStatus(p, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionTrue, agenticv1alpha1.PolicyReasonAccepted, "Valid CEL")
 
-			combinedPredicates = append(combinedPredicates, authorinov1beta3.PatternExpressionOrRef{
-				CelPredicate: authorinov1beta3.CelPredicate{
-					Predicate: translatedExpr,
-				},
-			})
+			validPredicates = append(validPredicates, translatedExpr)
 		}
+	}
+
+	var combinedPredicates []authorinov1beta3.PatternExpressionOrRef
+	if len(validPredicates) > 0 {
+		var combinedCEL string
+		for _, pred := range validPredicates {
+			if combinedCEL == "" {
+				combinedCEL = fmt.Sprintf("(%s)", pred)
+			} else {
+				combinedCEL = fmt.Sprintf("%s || (%s)", combinedCEL, pred)
+			}
+		}
+		combinedPredicates = append(combinedPredicates, authorinov1beta3.PatternExpressionOrRef{
+			CelPredicate: authorinov1beta3.CelPredicate{
+				Predicate: combinedCEL,
+			},
+		})
 	}
 
 	authPolicyName := fmt.Sprintf("%s-auth", gateway.Name)
