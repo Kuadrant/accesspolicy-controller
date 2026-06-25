@@ -122,7 +122,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 .PHONY: docker-build
 docker-build: test ## Build docker image with the manager.
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bin/manager cmd/main.go
-	docker build -t ${IMG} -f Dockerfile.fast .
+	docker build -t ${IMG} .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
