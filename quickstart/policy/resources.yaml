@@ -56,4 +56,4 @@ spec:
       authorization:
         type: CEL
         cel:
-          expression: "!('x-mcp-toolname' in request.headers) || request.headers['x-mcp-toolname'] == ''"
+          expression: "!(has(request.http.headers) && 'x-mcp-toolname' in request.http.headers) || request.http.headers['x-mcp-toolname'] == ''"

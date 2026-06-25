@@ -124,8 +124,15 @@ EOF
 fi
 
 kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/crd?ref=main' --context "kind-${CLUSTER_NAME}"
-sleep 2 # wait for CRDs to register
-kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=main' --context "kind-${CLUSTER_NAME}" || kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=main' --context "kind-${CLUSTER_NAME}"
+sleep 5 # wait for CRDs to register
+
+for i in 1 2 3 4; do
+  if kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=main' --context "kind-${CLUSTER_NAME}"; then
+    break
+  fi
+  warn "Failed to apply MCP gateway config, retrying in 5 seconds..."
+  sleep 5
+done
 
 # Fix upstream RBAC bug in mcp-gateway early preview
 kubectl patch clusterrole mcp-controller --type='json' -p='[{"op": "add", "path": "/rules/-", "value": {"apiGroups": ["apps"], "resources": ["deployments"], "verbs": ["get", "list", "watch", "update", "patch"]}}]' --context "kind-${CLUSTER_NAME}"
@@ -171,7 +178,8 @@ step "Creating namespace '${NAMESPACE}'"
 
 kubectl create namespace "${NAMESPACE}" --context "kind-${CLUSTER_NAME}" --dry-run=client -o yaml \
   | kubectl apply -f - --context "kind-${CLUSTER_NAME}"
-success "Namespace '${NAMESPACE}' ready"
+kubectl label namespace "${NAMESPACE}" istio-injection=enabled --overwrite --context "kind-${CLUSTER_NAME}"
+success "Namespace '${NAMESPACE}' ready with Istio injection"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 9: Build & load MCP server image

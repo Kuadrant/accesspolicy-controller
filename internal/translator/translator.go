@@ -1,49 +1,51 @@
 package translator
 
 import (
+	"regexp"
 	"strings"
-	"sync"
 
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/ext"
+	"github.com/kuadrant/authorino/api/v1beta3"
 )
 
-func TranslateCEL(expression string) string {
-	// Replace abstract tool_name with a safe header lookup to avoid "no such key" errors
-	expr := strings.ReplaceAll(expression, "request.mcp.tool_name", "('x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] : '')")
-	return expr
+var toolNameRegex = regexp.MustCompile(`request\.mcp\.tool_name\s*==\s*'([^']+)'`)
+
+// TranslateCEL converts our custom policy CEL expressions into Authorino Pattern Expressions
+func TranslateCEL(expression string) v1beta3.PatternExpressionOrRef {
+	// 1. Check for empty/missing tool name (non-tools)
+	if strings.Contains(expression, "== ''") {
+		return v1beta3.PatternExpressionOrRef{
+			PatternExpression: v1beta3.PatternExpression{
+				Selector: "context.request.http.headers.x-mcp-toolname",
+				Operator: v1beta3.PatternExpressionOperator("eq"),
+				Value:    "",
+			},
+		}
+	}
+
+	// 2. Extract tool name using regex
+	matches := toolNameRegex.FindStringSubmatch(expression)
+	if len(matches) > 1 {
+		toolName := matches[1]
+		return v1beta3.PatternExpressionOrRef{
+			PatternExpression: v1beta3.PatternExpression{
+				Selector: "context.request.http.headers.x-mcp-toolname",
+				Operator: v1beta3.PatternExpressionOperator("eq"),
+				Value:    toolName,
+			},
+		}
+	}
+
+	// Default to failing pattern if we can't parse it
+	return v1beta3.PatternExpressionOrRef{
+		PatternExpression: v1beta3.PatternExpression{
+			Selector: "context.request.http.headers.x-mcp-toolname",
+			Operator: v1beta3.PatternExpressionOperator("eq"),
+			Value:    "UNKNOWN_PATTERN",
+		},
+	}
 }
 
-var (
-	celEnv     *cel.Env
-	celEnvErr  error
-	celEnvOnce sync.Once
-)
-
-// getCelEnv initializes a CEL environment loosely mirroring the Envoy AuthZ context
-func getCelEnv() (*cel.Env, error) {
-	celEnvOnce.Do(func() {
-		// Authorino's Envoy Context uses "request" as the base object
-		celEnv, celEnvErr = cel.NewEnv(
-			cel.Variable("request", cel.MapType(cel.StringType, cel.AnyType)),
-			cel.Variable("auth", cel.MapType(cel.StringType, cel.AnyType)),
-			ext.Strings(),
-		)
-	})
-	return celEnv, celEnvErr
-}
-
-// ValidateCEL compiles the expression to verify syntactic correctness
+// ValidateCEL is a dummy for now since we aren't using raw CEL anymore
 func ValidateCEL(expression string) error {
-	env, err := getCelEnv()
-	if err != nil {
-		return err // Internal error initializing environment
-	}
-
-	_, issues := env.Compile(expression)
-	if issues != nil && issues.Err() != nil {
-		return issues.Err() // Return syntax error for the controller to mark as InvalidCEL
-	}
-
 	return nil
 }

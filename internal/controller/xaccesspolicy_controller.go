@@ -93,7 +93,7 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	var validPredicates []string
+	var validPredicates []authorinov1beta3.PatternExpressionOrRef
 	allValid := true
 
 	for i := range policyList.Items {
@@ -103,39 +103,23 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 
 		for _, rule := range p.Spec.Rules {
-			if rule.Authorization.Type != "CEL" {
-				continue
+			if rule.Authorization.Type == "CEL" {
+				translatedExpr := translator.TranslateCEL(rule.Authorization.CEL.Expression)
+				validPredicates = append(validPredicates, translatedExpr)
 			}
-
-			translatedExpr := translator.TranslateCEL(rule.Authorization.CEL.Expression)
-
-			if err := translator.ValidateCEL(translatedExpr); err != nil {
-				r.updateStatus(p, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, agenticv1alpha1.PolicyReasonInvalidCEL, fmt.Sprintf("CEL compilation failed: %v", err))
-				_ = r.Status().Update(ctx, p)
-				allValid = false
-				continue
-			}
-
-			r.updateStatus(p, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionTrue, agenticv1alpha1.PolicyReasonAccepted, "Valid CEL")
-
-			validPredicates = append(validPredicates, translatedExpr)
 		}
 	}
 
 	var combinedPredicates []authorinov1beta3.PatternExpressionOrRef
 	if len(validPredicates) > 0 {
-		var combinedCEL string
+		var anyList []authorinov1beta3.UnstructuredPatternExpressionOrRef
 		for _, pred := range validPredicates {
-			if combinedCEL == "" {
-				combinedCEL = fmt.Sprintf("(%s)", pred)
-			} else {
-				combinedCEL = fmt.Sprintf("%s || (%s)", combinedCEL, pred)
-			}
+			anyList = append(anyList, authorinov1beta3.UnstructuredPatternExpressionOrRef{
+				PatternExpressionOrRef: pred,
+			})
 		}
 		combinedPredicates = append(combinedPredicates, authorinov1beta3.PatternExpressionOrRef{
-			CelPredicate: authorinov1beta3.CelPredicate{
-				Predicate: combinedCEL,
-			},
+			Any: anyList,
 		})
 	}
 
