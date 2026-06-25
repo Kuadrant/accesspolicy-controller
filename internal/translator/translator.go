@@ -7,6 +7,8 @@ import (
 	"github.com/kuadrant/authorino/api/v1beta3"
 )
 
+const mcpToolnameSelector = "context.request.http.headers.x-mcp-toolname"
+
 var toolNameRegex = regexp.MustCompile(`request\.mcp\.tool_name\s*==\s*'([^']+)'`)
 
 // TranslateCEL converts our custom policy CEL expressions into Authorino Pattern Expressions
@@ -15,7 +17,7 @@ func TranslateCEL(expression string) v1beta3.PatternExpressionOrRef {
 	if strings.Contains(expression, "== ''") {
 		return v1beta3.PatternExpressionOrRef{
 			PatternExpression: v1beta3.PatternExpression{
-				Selector: "context.request.http.headers.x-mcp-toolname",
+				Selector: mcpToolnameSelector,
 				Operator: v1beta3.PatternExpressionOperator("eq"),
 				Value:    "",
 			},
@@ -28,7 +30,7 @@ func TranslateCEL(expression string) v1beta3.PatternExpressionOrRef {
 		toolName := matches[1]
 		return v1beta3.PatternExpressionOrRef{
 			PatternExpression: v1beta3.PatternExpression{
-				Selector: "context.request.http.headers.x-mcp-toolname",
+				Selector: mcpToolnameSelector,
 				Operator: v1beta3.PatternExpressionOperator("eq"),
 				Value:    toolName,
 			},
@@ -38,7 +40,7 @@ func TranslateCEL(expression string) v1beta3.PatternExpressionOrRef {
 	// Default to failing pattern if we can't parse it
 	return v1beta3.PatternExpressionOrRef{
 		PatternExpression: v1beta3.PatternExpression{
-			Selector: "context.request.http.headers.x-mcp-toolname",
+			Selector: mcpToolnameSelector,
 			Operator: v1beta3.PatternExpressionOperator("eq"),
 			Value:    "UNKNOWN_PATTERN",
 		},
