@@ -150,3 +150,46 @@ To prove the controller updates Authorino instantly:
 1. Edit the `XAccessPolicy` in Kubernetes to add `request.mcp.tool_name == 'get-tiny-image'`.
 2. Go back to the Inspector UI (no need to restart) and click `get-tiny-image` again.
 3. ✅ It now succeeds!
+
+---
+
+# Demo Walkthrough: Multi-Policy Aggregation
+
+## Objective
+Demonstrate how the standalone controller converts multiple `XAccessPolicy` resources targeting the same `Gateway` into a single, combined Kuadrant `AuthPolicy`.
+
+## 1. Run the Multi-Policy Demo
+Instead of manually applying resources step-by-step, we've provided an automated script that deploys a complete environment with two independent policies:
+
+```bash
+make demo-multi
+```
+
+## 2. Observe the Resources
+This demo deploys a Gateway and two distinct `XAccessPolicies`:
+- **Team A Policy**: Allows the `get-sum` tool.
+- **Team B Policy**: Allows the `echo` tool.
+
+```bash
+kubectl get xaccesspolicies -n quickstart-ns
+```
+
+## 3. Verify Aggregation
+The controller aggregates these policies into a single `AuthPolicy` applied to the Gateway:
+
+```bash
+kubectl get authpolicy demo-gateway-auth -n quickstart-ns -o yaml
+```
+
+You will see that the CEL expressions from both Team A and Team B's policies are combined into the generated `AuthPolicy`.
+
+## 4. Test Enforcement
+Connect to the Gateway using the MCP Inspector as before:
+```bash
+npx -y @modelcontextprotocol/inspector --transport sse --server-url http://localhost:8080/sse
+```
+
+Test the following tools:
+1. **`get-sum`**: ✅ Allowed (granted by Team A's policy)
+2. **`echo`**: ✅ Allowed (granted by Team B's policy)
+3. **`get-tiny-image`**: ❌ Blocked (not granted by any policy)

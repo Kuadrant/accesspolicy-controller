@@ -109,6 +109,27 @@ Now `get-tiny-image` is ✅ allowed and `echo` is ❌ blocked — no restarts ne
 make quickstart-clean
 ```
 
+## Multi-Policy Aggregation Demo
+
+The AccessPolicy controller allows multiple `XAccessPolicy` custom resources to target the same Gateway. It aggregates all these policies into a single Kuadrant `AuthPolicy`.
+
+To see this in action:
+
+```sh
+make demo-multi
+```
+
+This demo deploys the same MCP infrastructure as the quickstart, but applies two independent `XAccessPolicy` resources created by different teams:
+- Team A's policy allows `get-sum`.
+- Team B's policy allows `echo`.
+
+In the MCP Inspector UI, verify that both tools are ✅ Allowed, while other tools remain ❌ Blocked.
+
+Cleanup:
+```sh
+make demo-multi-clean
+```
+
 ## Getting Started
 
 ### Prerequisites
@@ -207,6 +228,12 @@ Run the linter:
 
 ```sh
 make lint
+```
+
+Run the conformance tests (spins up a local Kind cluster, deploys the controller, and runs the official `kube-agentic-networking` conformance suite):
+
+```sh
+make test-conformance
 ```
 
 ## Project Distribution

@@ -61,7 +61,7 @@ vet: ## Run go vet against code.
 
 .PHONY: test
 test: manifests generate fmt vet setup-envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell "$(ENVTEST)" use $(ENVTEST_K8S_VERSION) --bin-dir "$(LOCALBIN)" -p path)" go test $$(go list ./... | grep -v /e2e)
+	KUBEBUILDER_ASSETS="$(shell "$(ENVTEST)" use $(ENVTEST_K8S_VERSION) --bin-dir "$(LOCALBIN)" -p path --verify=false)" go test $$(go list ./... | grep -v /e2e)
 
 # TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
 # The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
@@ -93,6 +93,45 @@ test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expect
 .PHONY: cleanup-test-e2e
 cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
 	@$(KIND) delete cluster --name $(KIND_CLUSTER)
+
+.PHONY: test-conformance
+test-conformance: setup-test-e2e manifests generate fmt vet ## Run the conformance tests. Expected an isolated environment using Kind.
+	@echo "Building and pushing docker image for conformance tests..."
+	$(MAKE) docker-build IMG=example.com/accesspolicy:v0.0.1
+	$(KIND) load docker-image example.com/accesspolicy:v0.0.1 --name $(KIND_CLUSTER)
+	@echo "Installing CRDs and deploying controller..."
+	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+	$(MAKE) install
+	@echo "Installing Istio, Kuadrant, and MCP Gateway..."
+	helm repo add istio https://istio-release.storage.googleapis.com/charts || true
+	helm repo update istio
+	helm upgrade --install istio-base istio/base -n istio-system --create-namespace --wait
+	helm upgrade --install istiod istio/istiod -n istio-system --set pilot.resources.requests.memory=256Mi --set pilot.resources.requests.cpu=100m --wait
+	helm repo add kuadrant https://kuadrant.io/helm-charts/ || true
+	helm repo update kuadrant
+	helm upgrade --install kuadrant kuadrant/kuadrant-operator --namespace kuadrant-system --create-namespace --wait --timeout 5m
+	@echo "apiVersion: kuadrant.io/v1beta1" > /tmp/kuadrant.yaml
+	@echo "kind: Kuadrant" >> /tmp/kuadrant.yaml
+	@echo "metadata:" >> /tmp/kuadrant.yaml
+	@echo "  name: kuadrant" >> /tmp/kuadrant.yaml
+	@echo "  namespace: kuadrant-system" >> /tmp/kuadrant.yaml
+	@kubectl apply -f /tmp/kuadrant.yaml
+	kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/crd?ref=main'
+	@sleep 5
+	kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=main' || true
+	kubectl patch clusterrole mcp-controller --type='json' -p='[{"op": "add", "path": "/rules/-", "value": {"apiGroups": ["apps"], "resources": ["deployments"], "verbs": ["get", "list", "watch", "update", "patch"]}}]' || true
+	$(MAKE) deploy IMG=example.com/accesspolicy:v0.0.1
+	@echo "Waiting for controller to be ready..."
+	kubectl wait --for=condition=Available deployment/accesspolicy-controller-manager -n accesspolicy-system --timeout=120s
+	@echo "Running conformance tests..."
+	@GATEWAY_CLASS="$(GATEWAY_CLASS)"; \
+	if [ -z "$$GATEWAY_CLASS" ]; then \
+		GATEWAY_CLASS="istio"; \
+	fi; \
+	KUBECONFIG=$$(kind get kubeconfig-path --name="$(KIND_CLUSTER)" 2>/dev/null || echo ~/.kube/config) \
+	cd test/conformance && go test -v . -args --gateway-class="$$GATEWAY_CLASS" --cleanup-base-resources=false
+	$(MAKE) undeploy
+	$(MAKE) cleanup-test-e2e
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter
@@ -219,7 +258,7 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 .PHONY: setup-envtest
 setup-envtest: envtest ## Download the binaries required for ENVTEST in the local bin directory.
 	@echo "Setting up envtest binaries for Kubernetes version $(ENVTEST_K8S_VERSION)..."
-	@"$(ENVTEST)" use $(ENVTEST_K8S_VERSION) --bin-dir "$(LOCALBIN)" -p path || { \
+	@"$(ENVTEST)" use $(ENVTEST_K8S_VERSION) --bin-dir "$(LOCALBIN)" -p path --verify=false || { \
 		echo "Error: Failed to set up envtest binaries for version $(ENVTEST_K8S_VERSION)."; \
 		exit 1; \
 	}
@@ -262,11 +301,22 @@ endef
 ##@ Quickstart
 
 .PHONY: quickstart
-quickstart: ## Run the full quickstart demo (requires GOOGLE_API_KEY).
+quickstart: ## Run the full quickstart demo.
 	@chmod +x quickstart/run-quickstart.sh
 	quickstart/run-quickstart.sh
 
 .PHONY: quickstart-clean
 quickstart-clean: ## Tear down the quickstart Kind cluster.
+	kind delete cluster --name accesspolicy-demo
+
+##@ Multi-Policy Demo
+
+.PHONY: demo-multi
+demo-multi: ## Run the multi-policy aggregation demo.
+	@chmod +x demo-multi/run-demo.sh
+	demo-multi/run-demo.sh
+
+.PHONY: demo-multi-clean
+demo-multi-clean: ## Tear down the multi-policy Kind cluster.
 	kind delete cluster --name accesspolicy-demo
 
