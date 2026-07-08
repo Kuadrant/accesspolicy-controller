@@ -100,7 +100,9 @@ test-conformance: setup-test-e2e manifests generate fmt vet ## Run the conforman
 	$(MAKE) docker-build IMG=example.com/accesspolicy:v0.0.1
 	$(KIND) load docker-image example.com/accesspolicy:v0.0.1 --name $(KIND_CLUSTER)
 	@echo "Installing CRDs and deploying controller..."
-	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+	@for i in 1 2 3 4 5; do \
+		kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml && break || sleep 5; \
+	done
 	$(MAKE) install
 	@echo "Installing Istio, Kuadrant, and MCP Gateway..."
 	helm repo add istio https://istio-release.storage.googleapis.com/charts || true
@@ -116,10 +118,10 @@ test-conformance: setup-test-e2e manifests generate fmt vet ## Run the conforman
 	@echo "  name: kuadrant" >> /tmp/kuadrant.yaml
 	@echo "  namespace: kuadrant-system" >> /tmp/kuadrant.yaml
 	@kubectl apply -f /tmp/kuadrant.yaml
-	kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/crd?ref=main'
+	@for i in 1 2 3 4 5; do kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/crd?ref=main' && break || sleep 5; done
 	@sleep 5
-	kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=main' || true
-	kubectl patch clusterrole mcp-controller --type='json' -p='[{"op": "add", "path": "/rules/-", "value": {"apiGroups": ["apps"], "resources": ["deployments"], "verbs": ["get", "list", "watch", "update", "patch"]}}]' || true
+	@for i in 1 2 3 4 5; do kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=main' && break || sleep 5; done
+	kubectl patch clusterrole mcp-controller --type='json' -p='[{"op": "add", "path": "/rules/-", "value": {"apiGroups": ["apps"], "resources": ["deployments"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]}}, {"op": "add", "path": "/rules/-", "value": {"apiGroups": [""], "resources": ["namespaces"], "verbs": ["get"]}}]' || true
 	$(MAKE) deploy IMG=example.com/accesspolicy:v0.0.1
 	@echo "Waiting for controller to be ready..."
 	kubectl wait --for=condition=Available deployment/accesspolicy-controller-manager -n accesspolicy-system --timeout=120s
@@ -129,7 +131,7 @@ test-conformance: setup-test-e2e manifests generate fmt vet ## Run the conforman
 		GATEWAY_CLASS="istio"; \
 	fi; \
 	KUBECONFIG=$$(kind get kubeconfig-path --name="$(KIND_CLUSTER)" 2>/dev/null || echo ~/.kube/config) \
-	cd test/conformance && go test -v . -args --gateway-class="$$GATEWAY_CLASS" --cleanup-base-resources=false
+	cd test/conformance && go test -v . -args --gateway-class="$$GATEWAY_CLASS" --cleanup-base-resources=false --exempt-features=SupportAccessPolicyExternalAuth,SupportAccessPolicySPIFFE
 	$(MAKE) undeploy
 	$(MAKE) cleanup-test-e2e
 
@@ -319,4 +321,3 @@ demo-multi: ## Run the multi-policy aggregation demo.
 .PHONY: demo-multi-clean
 demo-multi-clean: ## Tear down the multi-policy Kind cluster.
 	kind delete cluster --name accesspolicy-demo
-

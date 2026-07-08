@@ -3,7 +3,7 @@
 # and allow the plugins properly work.
 # More info: https://book.kubebuilder.io/reference/project-config.html
 cliVersion: 4.15.0
-domain: agentic.networking.x-k8s.io
+domain: networking.x-k8s.io
 layout:
 - go.kubebuilder.io/v4
 projectName: accesspolicy
@@ -13,7 +13,7 @@ resources:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: agentic.networking.x-k8s.io
+  domain: networking.x-k8s.io
   group: agentic
   kind: XAccessPolicy
   path: github.com/vibhor-5/accesspolicy-controller/api/v1alpha1

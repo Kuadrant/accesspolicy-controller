@@ -11,7 +11,7 @@ The `XAccessPolicy` allows you to define declarative, tool-level access control 
 A standard `XAccessPolicy` contains two main sections: `targetRefs` and `rules`.
 
 ```yaml
-apiVersion: agentic.agentic.networking.x-k8s.io/v1alpha1
+apiVersion: agentic.networking.x-k8s.io/v1alpha1
 kind: XAccessPolicy
 metadata:
   name: example-policy
@@ -21,12 +21,20 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: my-gateway
+  action: Allow
   rules:
     - name: allow-specific-tool
+      source:
+        type: ServiceAccount
+        serviceAccount:
+          name: default
       authorization:
-        type: CEL
-        cel:
-          expression: "request.mcp.tool_name == 'search_web'"
+        type: Inline
+        mcp:
+          methods:
+            - name: tools/call
+              params:
+                - search_web
 ```
 
 ### 1. `targetRefs`
@@ -38,8 +46,9 @@ Currently, the controller supports targeting `Gateway` resources. You must speci
 Rules define what traffic is allowed through the Gateway to your MCP servers.
 
 - `name`: A descriptive name for the rule.
-- `authorization.type`: Must be set to `CEL`.
-- `authorization.cel.expression`: A valid CEL expression. The expression must evaluate to a boolean (`true` means the request is allowed).
+- `source`: Specifies the source identity of the request (e.g. a specific `ServiceAccount`).
+- `authorization.type`: Usually set to `Inline` for standard MCP method matching, but can also be `CEL`.
+- `authorization.mcp.methods`: A list of MCP methods to match (e.g. `tools/call` with specific `params`).
 
 ## The CEL Context
 
@@ -56,7 +65,7 @@ request.mcp.tool_name == 'get-weather' || request.mcp.tool_name == 'get-time'
 ```
 
 ### How it Works (Under the Hood)
-When the controller reconciles your policy, it translates `request.mcp.tool_name` into `request.headers['x-mcp-toolname']`. The `mcp-gateway` (using an `ext_proc` sidecar) inspects the JSON-RPC payload of incoming requests, extracts the tool name, and injects it into the `x-mcp-toolname` HTTP header before passing the request to Authorino for evaluation.
+When the controller reconciles your policy, it translates inline MCP method matching into Authorino predicates such as `request.headers['x-mcp-toolname'] == 'search_web'`. The `mcp-gateway` (using an `ext_proc` sidecar) inspects the JSON-RPC payload of incoming requests, extracts the tool name, and injects it into the `x-mcp-toolname` HTTP header before passing the request to Authorino for evaluation.
 
 ## Policy Aggregation
 

@@ -4,6 +4,8 @@ kind: Gateway
 metadata:
   name: demo-gateway
   namespace: quickstart-ns
+  annotations:
+    networking.istio.io/service-type: ClusterIP
 spec:
   gatewayClassName: istio
   listeners:
@@ -12,7 +14,7 @@ spec:
       port: 8080
       allowedRoutes:
         namespaces:
-          from: Same
+          from: All
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -20,6 +22,7 @@ metadata:
   name: mcp-route
   namespace: quickstart-ns
 spec:
+  hostnames: ["localhost"]
   parentRefs:
     - name: demo-gateway
   rules:
@@ -30,3 +33,35 @@ spec:
       backendRefs:
         - name: mcp-server
           port: 3001
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-mcp-system-routes
+  namespace: quickstart-ns
+spec:
+  from:
+    - group: mcp.kuadrant.io
+      kind: MCPGatewayExtension
+      namespace: mcp-system
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: mcp-system
+  to:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: demo-gateway
+---
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPGatewayExtension
+metadata:
+  name: mcp-gateway-extension
+  namespace: mcp-system
+spec:
+  publicHost: localhost
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: demo-gateway
+    namespace: quickstart-ns
+    sectionName: http

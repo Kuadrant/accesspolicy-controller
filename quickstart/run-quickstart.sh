@@ -75,7 +75,8 @@ else
   success "Kind cluster '${CLUSTER_NAME}' created"
 fi
 
-kubectl cluster-info --context "kind-${CLUSTER_NAME}" >/dev/null 2>&1
+kubectl config use-context "kind-${CLUSTER_NAME}"
+kubectl cluster-info >/dev/null 2>&1
 success "kubectl context set to kind-${CLUSTER_NAME}"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -83,8 +84,12 @@ success "kubectl context set to kind-${CLUSTER_NAME}"
 # ─────────────────────────────────────────────────────────────────────────────
 step "Installing Gateway API CRDs (${GATEWAY_API_VERSION})"
 
-kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/experimental-install.yaml" \
-  --context "kind-${CLUSTER_NAME}"
+for i in 1 2 3 4 5; do
+  if kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/experimental-install.yaml" --context "kind-${CLUSTER_NAME}"; then
+    break
+  fi
+  sleep 5
+done
 success "Gateway API CRDs installed"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -92,51 +97,138 @@ success "Gateway API CRDs installed"
 # ─────────────────────────────────────────────────────────────────────────────
 step "Installing Istio, Kuadrant, and MCP Gateway"
 
+# Helper: wait for the API server to settle after heavy CRD installations
+wait_for_apiserver() {
+  info "Waiting for API server to settle..."
+  for attempt in $(seq 1 30); do
+    if kubectl get --raw /readyz --context "kind-${CLUSTER_NAME}" &>/dev/null; then
+      return 0
+    fi
+    sleep 2
+  done
+  warn "API server may still be busy"
+}
+
+# --- Istio ---
 helm repo add istio https://istio-release.storage.googleapis.com/charts
 helm repo update istio
-helm upgrade --install istio-base istio/base -n istio-system --create-namespace --wait
-helm upgrade --install istiod istio/istiod -n istio-system \
-  --set pilot.resources.requests.memory=256Mi \
-  --set pilot.resources.requests.cpu=100m \
-  --wait
-success "Istio installed"
 
+for i in {1..10}; do
+  if helm upgrade --install istio-base istio/base -n istio-system --create-namespace \
+    --kube-context "kind-${CLUSTER_NAME}" \
+    --disable-openapi-validation \
+    --wait --timeout 10m; then
+    break
+  fi
+  warn "Failed to install istio-base, retrying..."
+  sleep 15
+done
+wait_for_apiserver
+
+for i in {1..10}; do
+  if helm upgrade --install istiod istio/istiod -n istio-system \
+    --set pilot.resources.requests.memory=256Mi \
+    --set pilot.resources.requests.cpu=100m \
+    --kube-context "kind-${CLUSTER_NAME}" \
+    --disable-openapi-validation \
+    --wait --timeout 10m; then
+    break
+  fi
+  warn "Failed to install istiod, retrying..."
+  sleep 15
+done
+success "Istio installed"
+wait_for_apiserver
+
+# --- Kuadrant ---
 helm repo add kuadrant https://kuadrant.io/helm-charts/ 2>/dev/null || true
 helm repo update kuadrant
 
 if helm status kuadrant --namespace kuadrant-system --kube-context "kind-${CLUSTER_NAME}" &>/dev/null; then
   warn "Kuadrant already installed — skipping"
 else
-  helm upgrade --install kuadrant kuadrant/kuadrant-operator \
-    --namespace kuadrant-system \
-    --create-namespace \
-    --kube-context "kind-${CLUSTER_NAME}" \
-    --wait --timeout 5m
-  
-  cat <<EOF | kubectl apply --context "kind-${CLUSTER_NAME}" -f -
+  for i in {1..10}; do
+    if helm upgrade --install kuadrant kuadrant/kuadrant-operator \
+      --namespace kuadrant-system \
+      --create-namespace \
+      --kube-context "kind-${CLUSTER_NAME}" \
+      --disable-openapi-validation \
+      --wait --timeout 10m; then
+      break
+    fi
+    warn "Failed to install kuadrant, retrying..."
+    sleep 15
+  done
+  wait_for_apiserver
+
+  for attempt in $(seq 1 10); do
+    if cat <<EOF | kubectl apply --context "kind-${CLUSTER_NAME}" -f -
 apiVersion: kuadrant.io/v1beta1
 kind: Kuadrant
 metadata:
   name: kuadrant
   namespace: kuadrant-system
 EOF
+    then break; fi
+    sleep 5
+  done
   success "Kuadrant operator installed"
 fi
+wait_for_apiserver
 
-kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/crd?ref=main' --context "kind-${CLUSTER_NAME}"
-sleep 5 # wait for CRDs to register
-
-for i in 1 2 3 4; do
-  if kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=main' --context "kind-${CLUSTER_NAME}"; then
+# --- MCP Gateway ---
+for i in {1..10}; do
+  if kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/crd?ref=v0.7.1' --context "kind-${CLUSTER_NAME}"; then
     break
   fi
-  warn "Failed to apply MCP gateway config, retrying in 5 seconds..."
-  sleep 5
+  warn "Failed to apply MCP Gateway CRDs, retrying..."
+  sleep 10
+done
+wait_for_apiserver
+
+# Determine platform matching host architecture to avoid kind load manifest matching errors
+ARCH=$(uname -m)
+PLATFORM="linux/amd64"
+if [[ "${ARCH}" == "arm64" ]]; then
+  PLATFORM="linux/arm64"
+fi
+
+# Pre-load MCP Gateway images so they don't wait for pulls
+info "Pre-loading MCP Gateway images (${PLATFORM})..."
+for img in ghcr.io/kuadrant/mcp-controller:v0.7.1 ghcr.io/kuadrant/mcp-gateway:v0.7.1; do
+  docker pull --platform "${PLATFORM}" "${img}" 2>/dev/null || true
+  kind load docker-image "${img}" --name "${CLUSTER_NAME}" 2>/dev/null || true
+done
+
+for i in {1..10}; do
+  if kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=v0.7.1' --context "kind-${CLUSTER_NAME}"; then
+    break
+  fi
+  warn "Failed to apply MCP gateway config, retrying..."
+  sleep 10
 done
 
 # Fix upstream RBAC bug in mcp-gateway early preview
-kubectl patch clusterrole mcp-controller --type='json' -p='[{"op": "add", "path": "/rules/-", "value": {"apiGroups": ["apps"], "resources": ["deployments"], "verbs": ["get", "list", "watch", "update", "patch"]}}]' --context "kind-${CLUSTER_NAME}"
-success "MCP Gateway components installed"
+for i in 1 2 3 4 5; do
+  if kubectl patch clusterrole mcp-controller --type='json' -p='[
+    {"op": "add", "path": "/rules/-", "value": {"apiGroups": ["apps"], "resources": ["deployments"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]}},
+    {"op": "add", "path": "/rules/-", "value": {"apiGroups": [""], "resources": ["namespaces"], "verbs": ["get"]}},
+    {"op": "add", "path": "/rules/-", "value": {"apiGroups": ["gateway.networking.k8s.io"], "resources": ["httproutes"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]}},
+    {"op": "add", "path": "/rules/-", "value": {"apiGroups": ["gateway.networking.k8s.io"], "resources": ["gateways", "gateways/status"], "verbs": ["get", "list", "watch", "update", "patch"]}}
+  ]' --context "kind-${CLUSTER_NAME}"; then
+    break
+  fi
+  sleep 5
+done
+
+# Fix upstream signing key bug in mcp-broker-router standalone deployment
+for i in 1 2 3 4 5; do
+  if kubectl patch deployment mcp-broker-router -n mcp-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/env", "value": [{"name": "GATEWAY_SIGNING_KEY", "valueFrom": {"secretKeyRef": {"name": "mcp-gateway-session-signing-key", "key": "key"}}}]}]' --context "kind-${CLUSTER_NAME}"; then
+    break
+  fi
+  sleep 5
+done
+success "MCP Gateway components installed and patched"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 5: Build & load controller image
@@ -154,7 +246,12 @@ success "Controller image built and loaded into Kind"
 step "Installing XAccessPolicy CRDs"
 
 cd "${PROJECT_ROOT}"
-make install
+for i in 1 2 3 4 5; do
+  if make install; then
+    break
+  fi
+  sleep 5
+done
 success "XAccessPolicy CRDs installed"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -163,7 +260,12 @@ success "XAccessPolicy CRDs installed"
 step "Deploying accesspolicy-controller"
 
 cd "${PROJECT_ROOT}"
-make deploy IMG="${CONTROLLER_IMG}"
+for i in 1 2 3 4 5; do
+  if make deploy IMG="${CONTROLLER_IMG}"; then
+    break
+  fi
+  sleep 5
+done
 info "Waiting for controller deployment to be ready..."
 kubectl rollout status deployment/accesspolicy-controller-manager \
   -n accesspolicy-system \
@@ -172,13 +274,22 @@ kubectl rollout status deployment/accesspolicy-controller-manager \
 success "Controller deployed and ready"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 8: Create quickstart namespace
+# Step 8: Create quickstart namespace & pre-load Istio sidecar
 # ─────────────────────────────────────────────────────────────────────────────
-step "Creating namespace '${NAMESPACE}'"
+step "Creating namespace '${NAMESPACE}' and pre-loading Istio sidecar"
 
 kubectl create namespace "${NAMESPACE}" --context "kind-${CLUSTER_NAME}" --dry-run=client -o yaml \
   | kubectl apply -f - --context "kind-${CLUSTER_NAME}"
 kubectl label namespace "${NAMESPACE}" istio-injection=enabled --overwrite --context "kind-${CLUSTER_NAME}"
+
+# Pre-load the Istio sidecar image so pods with injection don't wait for pulls
+ISTIOD_TAG=$(kubectl get deployment istiod -n istio-system --context "kind-${CLUSTER_NAME}" -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "")
+if [[ -n "${ISTIOD_TAG}" ]]; then
+  PROXY_IMG=$(echo "${ISTIOD_TAG}" | sed -e 's/pilot/proxyv2/g')  # istiod uses pilot, sidecars use proxyv2
+  info "Pre-loading Istio sidecar image: ${PROXY_IMG}"
+  docker pull --platform "${PLATFORM}" "${PROXY_IMG}" 2>/dev/null || true
+  kind load docker-image "${PROXY_IMG}" --name "${CLUSTER_NAME}" 2>/dev/null || true
+fi
 success "Namespace '${NAMESPACE}' ready with Istio injection"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -195,12 +306,17 @@ success "MCP server image built and loaded into Kind"
 # ─────────────────────────────────────────────────────────────────────────────
 step "Deploying MCP server"
 
-kubectl apply -f "${SCRIPT_DIR}/mcpserver/deployment.yaml" --context "kind-${CLUSTER_NAME}"
+for i in 1 2 3 4 5; do
+  if kubectl apply -f "${SCRIPT_DIR}/mcpserver/deployment.yaml" --context "kind-${CLUSTER_NAME}"; then
+    break
+  fi
+  sleep 5
+done
 info "Waiting for MCP server deployment to be ready..."
 kubectl rollout status deployment/mcp-server \
   -n "${NAMESPACE}" \
   --context "kind-${CLUSTER_NAME}" \
-  --timeout=120s
+  --timeout=300s
 success "MCP server deployed and ready"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -208,8 +324,23 @@ success "MCP server deployed and ready"
 # ─────────────────────────────────────────────────────────────────────────────
 step "Applying Gateway & XAccessPolicy"
 
-kubectl apply -f "${SCRIPT_DIR}/policy/resources.yaml" --context "kind-${CLUSTER_NAME}"
+for i in 1 2 3 4 5; do
+  if kubectl apply -f "${SCRIPT_DIR}/policy/resources.yaml" --context "kind-${CLUSTER_NAME}"; then
+    break
+  fi
+  sleep 5
+done
 success "Gateway, HTTPRoute, and XAccessPolicy applied"
+
+info "Waiting for MCP Gateway extension and broker/router to be ready..."
+kubectl wait --for=condition=Ready --timeout=120s mcpgatewayextension/mcp-gateway-extension \
+  -n mcp-system \
+  --context "kind-${CLUSTER_NAME}"
+kubectl rollout status deployment/mcp-broker-router \
+  -n mcp-system \
+  --context "kind-${CLUSTER_NAME}" \
+  --timeout=120s
+success "MCP Gateway extension ready"
 
 info "Waiting for XAccessPolicy to be accepted..."
 sleep 3

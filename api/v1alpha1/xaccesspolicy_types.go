@@ -24,31 +24,96 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-type TargetRef struct {
+// LocalPolicyTargetReference identifies a target resource within the local namespace.
+type LocalPolicyTargetReference struct {
 	Group string `json:"group"`
 	Kind  string `json:"kind"`
 	Name  string `json:"name"`
 }
 
-type CELAuthorization struct {
+// LocalPolicyTargetReferenceWithSectionName identifies a target resource and optionally a specific section.
+type LocalPolicyTargetReferenceWithSectionName struct {
+	LocalPolicyTargetReference `json:",inline"`
+	SectionName                *string `json:"sectionName,omitempty"`
+}
+
+type AccessPolicySpec struct {
+	TargetRefs   []LocalPolicyTargetReferenceWithSectionName `json:"targetRefs"`
+	Action       AccessPolicyActionType                      `json:"action"`
+	ExternalAuth *runtime.RawExtension                       `json:"externalAuth,omitempty"`
+	Rules        []AccessRule                                `json:"rules,omitempty"`
+}
+
+type AccessPolicyActionType string
+
+const (
+	ActionTypeAllow        AccessPolicyActionType = "Allow"
+	ActionTypeExternalAuth AccessPolicyActionType = "ExternalAuth"
+)
+
+type MCPBaseProtocolMethodsOption string
+
+const (
+	MCPBaseProtocolMethodsOptionSkip  MCPBaseProtocolMethodsOption = "SKIP_BASE_PROTOCOL_METHODS"
+	MCPBaseProtocolMethodsOptionMatch MCPBaseProtocolMethodsOption = "MATCH_BASE_PROTOCOL_METHODS"
+)
+
+type AccessRule struct {
+	Name          string             `json:"name"`
+	Source        AccessRuleSource   `json:"source"`
+	Authorization *AuthorizationRule `json:"authorization,omitempty"`
+}
+
+type AccessRuleSource struct {
+	Type           AuthorizationSourceType            `json:"type"`
+	SPIFFE         *AuthorizationSourceSPIFFE         `json:"spiffe,omitempty"`
+	ServiceAccount *AuthorizationSourceServiceAccount `json:"serviceAccount,omitempty"`
+}
+
+type AuthorizationSourceType string
+
+const (
+	AuthorizationSourceTypeSPIFFE         AuthorizationSourceType = "SPIFFE"
+	AuthorizationSourceTypeServiceAccount AuthorizationSourceType = "ServiceAccount"
+)
+
+type AuthorizationSourceSPIFFE string
+
+type AuthorizationSourceServiceAccount struct {
+	Namespace string `json:"namespace,omitempty"`
+	Name      string `json:"name"`
+}
+
+type AuthorizationRule struct {
+	Type AuthorizationRuleType `json:"type"`
+	MCP  MCPAttributes         `json:"mcp,omitempty"`
+	CEL  *AccessPolicyCELRule  `json:"cel,omitempty"`
+}
+
+type AccessPolicyCELRule struct {
 	Expression string `json:"expression"`
 }
 
-type Authorization struct {
-	Type string           `json:"type"`
-	CEL  CELAuthorization `json:"cel,omitempty"`
+type MCPAttributes struct {
+	Methods                      []MCPMethod                  `json:"methods,omitempty"`
+	MCPBaseProtocolMethodsOption MCPBaseProtocolMethodsOption `json:"mcpBaseProtocolMethodsOption,omitempty"`
 }
 
-type Rule struct {
-	Name          string        `json:"name"`
-	Authorization Authorization `json:"authorization"`
+type MCPMethod struct {
+	Name   MCPMethodName    `json:"name"`
+	Params []MCPMethodParam `json:"params,omitempty"`
 }
 
-// XAccessPolicySpec defines the desired state of XAccessPolicy
-type XAccessPolicySpec struct {
-	TargetRefs []TargetRef `json:"targetRefs"`
-	Rules      []Rule      `json:"rules"`
-}
+type MCPMethodParam string
+
+type MCPMethodName string
+
+type AuthorizationRuleType string
+
+const (
+	AuthorizationRuleTypeInline AuthorizationRuleType = "Inline"
+	AuthorizationRuleTypeCEL    AuthorizationRuleType = "CEL"
+)
 
 const (
 	PolicyConditionAccepted     = "Accepted"
@@ -89,7 +154,7 @@ type XAccessPolicy struct {
 
 	// spec defines the desired state of XAccessPolicy
 	// +required
-	Spec XAccessPolicySpec `json:"spec"`
+	Spec AccessPolicySpec `json:"spec"`
 
 	// status defines the observed state of XAccessPolicy
 	// +optional

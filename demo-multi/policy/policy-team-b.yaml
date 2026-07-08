@@ -1,5 +1,5 @@
 ---
-apiVersion: agentic.agentic.networking.x-k8s.io/v1alpha1
+apiVersion: agentic.networking.x-k8s.io/v1alpha1
 kind: XAccessPolicy
 metadata:
   name: team-b-policy
@@ -9,8 +9,13 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: demo-gateway
+  action: Allow
   rules:
     - name: team-b-allow-echo
+      source:
+        type: ServiceAccount
+        serviceAccount:
+          name: default
       authorization:
         type: CEL
         cel:

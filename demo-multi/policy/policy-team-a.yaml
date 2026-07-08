@@ -1,5 +1,5 @@
 ---
-apiVersion: agentic.agentic.networking.x-k8s.io/v1alpha1
+apiVersion: agentic.networking.x-k8s.io/v1alpha1
 kind: XAccessPolicy
 metadata:
   name: team-a-policy
@@ -9,14 +9,23 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: demo-gateway
+  action: Allow
   rules:
     - name: team-a-allow-get-sum
+      source:
+        type: ServiceAccount
+        serviceAccount:
+          name: default
       authorization:
         type: CEL
         cel:
           expression: "request.mcp.tool_name == 'get-sum'"
     - name: allow-non-tools
+      source:
+        type: ServiceAccount
+        serviceAccount:
+          name: default
       authorization:
         type: CEL
         cel:
-          expression: "!(has(request.http.headers) && 'x-mcp-toolname' in request.http.headers) || request.http.headers['x-mcp-toolname'] == ''"
+          expression: "!(has(request.headers) && 'x-mcp-toolname' in request.headers) || (has(request.headers) && request.headers['x-mcp-toolname'] == '')"

@@ -1,4 +1,4 @@
-apiVersion: agentic.agentic.networking.x-k8s.io/v1alpha1
+apiVersion: agentic.networking.x-k8s.io/v1alpha1
 kind: XAccessPolicy
 metadata:
   labels:
@@ -10,8 +10,13 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: mcp-gateway
+  action: Allow
   rules:
     - name: allow-search-web-only
+      source:
+        type: ServiceAccount
+        serviceAccount:
+          name: default
       authorization:
         type: CEL
         cel:

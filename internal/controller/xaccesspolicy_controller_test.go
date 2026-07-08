@@ -54,20 +54,28 @@ var _ = Describe("XAccessPolicy Controller", func() {
 						Name:      resourceName,
 						Namespace: resourceNamespace,
 					},
-					Spec: agenticv1alpha1.XAccessPolicySpec{
-						TargetRefs: []agenticv1alpha1.TargetRef{
+					Spec: agenticv1alpha1.AccessPolicySpec{
+						TargetRefs: []agenticv1alpha1.LocalPolicyTargetReferenceWithSectionName{
 							{
-								Group: "gateway.networking.k8s.io",
-								Kind:  gatewayKind,
-								Name:  "test-gateway",
+								LocalPolicyTargetReference: agenticv1alpha1.LocalPolicyTargetReference{
+									Group: "gateway.networking.k8s.io",
+									Kind:  gatewayKind,
+									Name:  "test-gateway",
+								},
 							},
 						},
-						Rules: []agenticv1alpha1.Rule{
+						Rules: []agenticv1alpha1.AccessRule{
 							{
 								Name: "test-rule",
-								Authorization: agenticv1alpha1.Authorization{
-									Type: "CEL",
-									CEL: agenticv1alpha1.CELAuthorization{
+								Source: agenticv1alpha1.AccessRuleSource{
+									Type: agenticv1alpha1.AuthorizationSourceTypeServiceAccount,
+									ServiceAccount: &agenticv1alpha1.AuthorizationSourceServiceAccount{
+										Name: "default",
+									},
+								},
+								Authorization: &agenticv1alpha1.AuthorizationRule{
+									Type: agenticv1alpha1.AuthorizationRuleTypeCEL,
+									CEL: &agenticv1alpha1.AccessPolicyCELRule{
 										Expression: "request.mcp.tool_name == 'search_web'",
 									},
 								},

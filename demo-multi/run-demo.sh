@@ -123,11 +123,11 @@ EOF
   success "Kuadrant operator installed"
 fi
 
-kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/crd?ref=main' --context "kind-${CLUSTER_NAME}"
+kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/crd?ref=v0.7.1' --context "kind-${CLUSTER_NAME}"
 sleep 5 # wait for CRDs to register
 
 for i in 1 2 3 4; do
-  if kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=main' --context "kind-${CLUSTER_NAME}"; then
+  if kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=v0.7.1' --context "kind-${CLUSTER_NAME}"; then
     break
   fi
   warn "Failed to apply MCP gateway config, retrying in 5 seconds..."
@@ -135,8 +135,17 @@ for i in 1 2 3 4; do
 done
 
 # Fix upstream RBAC bug in mcp-gateway early preview
-kubectl patch clusterrole mcp-controller --type='json' -p='[{"op": "add", "path": "/rules/-", "value": {"apiGroups": ["apps"], "resources": ["deployments"], "verbs": ["get", "list", "watch", "update", "patch"]}}]' --context "kind-${CLUSTER_NAME}"
-success "MCP Gateway components installed"
+kubectl patch clusterrole mcp-controller --type='json' -p='[
+  {"op": "add", "path": "/rules/-", "value": {"apiGroups": ["apps"], "resources": ["deployments"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]}},
+  {"op": "add", "path": "/rules/-", "value": {"apiGroups": [""], "resources": ["namespaces"], "verbs": ["get"]}},
+  {"op": "add", "path": "/rules/-", "value": {"apiGroups": ["gateway.networking.k8s.io"], "resources": ["httproutes"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]}},
+  {"op": "add", "path": "/rules/-", "value": {"apiGroups": ["gateway.networking.k8s.io"], "resources": ["gateways", "gateways/status"], "verbs": ["get", "list", "watch", "update", "patch"]}}
+]' --context "kind-${CLUSTER_NAME}"
+
+# Fix upstream signing key bug in mcp-broker-router standalone deployment
+kubectl patch deployment mcp-broker-router -n mcp-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/env", "value": [{"name": "GATEWAY_SIGNING_KEY", "valueFrom": {"secretKeyRef": {"name": "mcp-gateway-session-signing-key", "key": "key"}}}]}]' --context "kind-${CLUSTER_NAME}"
+
+success "MCP Gateway components installed and patched"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 5: Build & load controller image
@@ -144,7 +153,7 @@ success "MCP Gateway components installed"
 step "Building controller image (${CONTROLLER_IMG})"
 
 cd "${PROJECT_ROOT}"
-make docker-build IMG="${CONTROLLER_IMG}"
+docker build -t "${CONTROLLER_IMG}" .
 kind load docker-image "${CONTROLLER_IMG}" --name "${CLUSTER_NAME}"
 success "Controller image built and loaded into Kind"
 
@@ -212,6 +221,16 @@ kubectl apply -f "${SCRIPT_DIR}/policy/resources.yaml" --context "kind-${CLUSTER
 kubectl apply -f "${SCRIPT_DIR}/policy/policy-team-a.yaml" --context "kind-${CLUSTER_NAME}"
 kubectl apply -f "${SCRIPT_DIR}/policy/policy-team-b.yaml" --context "kind-${CLUSTER_NAME}"
 success "Gateway, HTTPRoute, and multiple XAccessPolicies applied"
+
+info "Waiting for MCP Gateway extension and broker/router to be ready..."
+kubectl wait --for=condition=Ready --timeout=120s mcpgatewayextension/mcp-gateway-extension \
+  -n mcp-system \
+  --context "kind-${CLUSTER_NAME}"
+kubectl rollout status deployment/mcp-broker-router \
+  -n mcp-system \
+  --context "kind-${CLUSTER_NAME}" \
+  --timeout=120s
+success "MCP Gateway extension ready"
 
 info "Waiting for XAccessPolicies to be accepted..."
 sleep 3

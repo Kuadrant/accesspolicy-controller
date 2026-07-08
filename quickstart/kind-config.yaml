@@ -5,5 +5,3 @@ name: accesspolicy-demo
 nodes:
   - role: control-plane
     image: kindest/node:v1.32.0
-  - role: worker
-    image: kindest/node:v1.32.0

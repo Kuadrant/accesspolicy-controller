@@ -40,12 +40,20 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: mcp-gateway
+  action: Allow
   rules:
     - name: allow-search-web-only
+      source:
+        type: ServiceAccount
+        serviceAccount:
+          name: default
       authorization:
-        type: CEL
-        cel:
-          expression: "request.mcp.tool_name == 'search_web'"
+        type: Inline
+        mcp:
+          methods:
+            - name: tools/call
+              params:
+                - search_web
 status:
   conditions:
   - type: Programmed

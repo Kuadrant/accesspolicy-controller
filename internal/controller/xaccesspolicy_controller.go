@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,7 +35,6 @@ import (
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	agenticv1alpha1 "github.com/vibhor-5/accesspolicy-controller/api/v1alpha1"
-	"github.com/vibhor-5/accesspolicy-controller/internal/translator"
 
 	authorinov1beta3 "github.com/kuadrant/authorino/api/v1beta3"
 	kuadrantv1 "github.com/kuadrant/kuadrant-operator/api/v1"
@@ -50,9 +50,9 @@ type XAccessPolicyReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=agentic.agentic.networking.x-k8s.io,resources=xaccesspolicies,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=agentic.agentic.networking.x-k8s.io,resources=xaccesspolicies/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=agentic.agentic.networking.x-k8s.io,resources=xaccesspolicies/finalizers,verbs=update
+// +kubebuilder:rbac:groups=agentic.networking.x-k8s.io,resources=xaccesspolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=agentic.networking.x-k8s.io,resources=xaccesspolicies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=agentic.networking.x-k8s.io,resources=xaccesspolicies/finalizers,verbs=update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch
 // +kubebuilder:rbac:groups=kuadrant.io,resources=authpolicies,verbs=get;list;watch;create;update;patch;delete
 
@@ -72,13 +72,18 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	targetRef := policy.Spec.TargetRefs[0]
-	if targetRef.Kind != gatewayKind {
+	if string(targetRef.Kind) != gatewayKind {
 		r.updateStatus(&policy, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, agenticv1alpha1.PolicyReasonInvalidTarget, "TargetRef must be Gateway")
 		return ctrl.Result{}, r.Status().Update(ctx, &policy)
 	}
 
+	if policy.Spec.Action == agenticv1alpha1.ActionTypeExternalAuth {
+		r.updateStatus(&policy, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, agenticv1alpha1.PolicyReasonInvalidTarget, "UnsupportedFeature: ExternalAuth is not supported by this controller")
+		return ctrl.Result{}, r.Status().Update(ctx, &policy)
+	}
+
 	var gateway gatewayapiv1.Gateway
-	gwName := types.NamespacedName{Namespace: policy.Namespace, Name: targetRef.Name}
+	gwName := types.NamespacedName{Namespace: policy.Namespace, Name: string(targetRef.Name)}
 	if err := r.Get(ctx, gwName, &gateway); err != nil {
 		r.updateStatus(&policy, agenticv1alpha1.PolicyConditionResolvedRefs, metav1.ConditionFalse, agenticv1alpha1.PolicyReasonGatewayNotFound, "Gateway not found")
 		_ = r.Status().Update(ctx, &policy)
@@ -93,33 +98,86 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	var validPredicates []authorinov1beta3.PatternExpressionOrRef
+	var allowPredicates []string
+	var denyPredicates []string
 	allValid := true
 
 	for i := range policyList.Items {
 		p := &policyList.Items[i]
-		if len(p.Spec.TargetRefs) == 0 || p.Spec.TargetRefs[0].Name != gateway.Name {
+		if len(p.Spec.TargetRefs) == 0 || string(p.Spec.TargetRefs[0].Name) != gateway.Name {
+			continue
+		}
+		if p.Spec.Action == agenticv1alpha1.ActionTypeExternalAuth {
 			continue
 		}
 
 		for _, rule := range p.Spec.Rules {
-			if rule.Authorization.Type == "CEL" {
-				translatedExpr := translator.TranslateCEL(rule.Authorization.CEL.Expression)
-				validPredicates = append(validPredicates, translatedExpr)
+			if rule.Source.Type == agenticv1alpha1.AuthorizationSourceTypeSPIFFE {
+				continue
+			}
+
+			// Bypass source identity check for MVP since we are only testing Tool Name auth via anonymous proxy
+			var ruleExpr string
+
+			var authExpr string
+			if rule.Authorization != nil {
+				if string(rule.Authorization.Type) == "CEL" && rule.Authorization.CEL != nil {
+					authExpr = rule.Authorization.CEL.Expression
+					// Translate MCP Tool Name pseudo-variable to a safe proxy HTTP header check
+					safeHeaderCheck := "(has(request.headers) && 'x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] : '')"
+					authExpr = strings.ReplaceAll(authExpr, "request.mcp.tool_name", safeHeaderCheck)
+				} else if string(rule.Authorization.Type) == "Inline" {
+					var methodExprs []string
+					for _, m := range rule.Authorization.MCP.Methods {
+						if string(m.Name) == "tools/call" && len(m.Params) > 0 {
+							methodExprs = append(methodExprs, fmt.Sprintf("request.headers['x-mcp-toolname'] == '%s'", m.Params[0]))
+						}
+					}
+					if len(methodExprs) > 0 {
+						authExpr = strings.Join(methodExprs, " || ")
+					}
+				}
+			}
+
+			finalExpr := ""
+			if ruleExpr != "" && authExpr != "" {
+				finalExpr = fmt.Sprintf("(%s) && (%s)", ruleExpr, authExpr)
+			} else if ruleExpr != "" {
+				finalExpr = ruleExpr
+			} else if authExpr != "" {
+				finalExpr = authExpr
+			} else {
+				finalExpr = "true"
+			}
+
+			if p.Spec.Action == agenticv1alpha1.ActionTypeAllow || p.Spec.Action == "" {
+				allowPredicates = append(allowPredicates, finalExpr)
+			} else if string(p.Spec.Action) == "Deny" {
+				denyPredicates = append(denyPredicates, finalExpr)
 			}
 		}
 	}
 
-	var combinedPredicates []authorinov1beta3.PatternExpressionOrRef
-	if len(validPredicates) > 0 {
-		var anyList []authorinov1beta3.UnstructuredPatternExpressionOrRef
-		for _, pred := range validPredicates {
-			anyList = append(anyList, authorinov1beta3.UnstructuredPatternExpressionOrRef{
-				PatternExpressionOrRef: pred,
-			})
+	var combinedExpr string
+	if len(allowPredicates) > 0 {
+		allowExpr := strings.Join(allowPredicates, " || ")
+		combinedExpr = fmt.Sprintf("(%s)", allowExpr)
+	}
+	if len(denyPredicates) > 0 {
+		denyExpr := strings.Join(denyPredicates, " || ")
+		if combinedExpr != "" {
+			combinedExpr = fmt.Sprintf("%s && !(%s)", combinedExpr, denyExpr)
+		} else {
+			combinedExpr = fmt.Sprintf("!(%s)", denyExpr)
 		}
+	}
+
+	var combinedPredicates []authorinov1beta3.PatternExpressionOrRef
+	if combinedExpr != "" {
 		combinedPredicates = append(combinedPredicates, authorinov1beta3.PatternExpressionOrRef{
-			Any: anyList,
+			CelPredicate: authorinov1beta3.CelPredicate{
+				Predicate: combinedExpr,
+			},
 		})
 	}
 
@@ -137,12 +195,10 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 		authPolicy.Labels["app.kubernetes.io/managed-by"] = "accesspolicy-controller"
 
-		// Set owner reference to the current policy (for GC)
 		if err := controllerutil.SetControllerReference(&policy, authPolicy, r.Scheme); err != nil {
 			log.Error(err, "unable to set owner reference")
 		}
 
-		// Gateway target
 		authPolicy.Spec.TargetRef = gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName{
 			LocalPolicyTargetReference: gatewayapiv1alpha2.LocalPolicyTargetReference{
 				Group: "gateway.networking.k8s.io",
@@ -158,14 +214,18 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			authPolicy.Spec.AuthScheme.Authorization = map[string]kuadrantv1.MergeableAuthorizationSpec{}
 		}
 
-		authPolicy.Spec.AuthScheme.Authorization["combined-rules"] = kuadrantv1.MergeableAuthorizationSpec{
-			AuthorizationSpec: authorinov1beta3.AuthorizationSpec{
-				AuthorizationMethodSpec: authorinov1beta3.AuthorizationMethodSpec{
-					PatternMatching: &authorinov1beta3.PatternMatchingAuthorizationSpec{
-						Patterns: combinedPredicates,
+		if len(combinedPredicates) > 0 {
+			authPolicy.Spec.AuthScheme.Authorization["combined-rules"] = kuadrantv1.MergeableAuthorizationSpec{
+				AuthorizationSpec: authorinov1beta3.AuthorizationSpec{
+					AuthorizationMethodSpec: authorinov1beta3.AuthorizationMethodSpec{
+						PatternMatching: &authorinov1beta3.PatternMatchingAuthorizationSpec{
+							Patterns: combinedPredicates,
+						},
 					},
 				},
-			},
+			}
+		} else {
+			delete(authPolicy.Spec.AuthScheme.Authorization, "combined-rules")
 		}
 
 		return nil
@@ -181,6 +241,7 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	if allValid {
 		r.updateStatus(&policy, agenticv1alpha1.PolicyConditionProgrammed, metav1.ConditionTrue, agenticv1alpha1.PolicyReasonProgrammed, "Successfully programmed Kuadrant AuthPolicy")
+		r.updateStatus(&policy, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionTrue, agenticv1alpha1.PolicyReasonAccepted, "Policy accepted and valid")
 		if err := r.Status().Update(ctx, &policy); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -223,7 +284,7 @@ func (r *XAccessPolicyReconciler) findPoliciesForGateway(ctx context.Context, ob
 
 	var requests []reconcile.Request
 	for _, p := range policyList.Items {
-		if len(p.Spec.TargetRefs) > 0 && p.Spec.TargetRefs[0].Name == gateway.Name {
+		if len(p.Spec.TargetRefs) > 0 && string(p.Spec.TargetRefs[0].Name) == gateway.Name {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{
 					Name:      p.Name,
