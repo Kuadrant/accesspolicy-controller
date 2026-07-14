@@ -7,7 +7,7 @@ rules:
 - apiGroups:
   - agentic.networking.x-k8s.io
   resources:
-  - xaccesspolicies
+  - accesspolicies
   verbs:
   - create
   - delete
@@ -19,13 +19,13 @@ rules:
 - apiGroups:
   - agentic.networking.x-k8s.io
   resources:
-  - xaccesspolicies/finalizers
+  - accesspolicies/finalizers
   verbs:
   - update
 - apiGroups:
   - agentic.networking.x-k8s.io
   resources:
-  - xaccesspolicies/status
+  - accesspolicies/status
   verbs:
   - get
   - patch

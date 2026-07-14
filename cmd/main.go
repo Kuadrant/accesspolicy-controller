@@ -36,9 +36,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	kuadrantv1 "github.com/kuadrant/kuadrant-operator/api/v1"
-	agenticv1alpha1 "github.com/vibhor-5/accesspolicy-controller/api/v1alpha1"
 	"github.com/vibhor-5/accesspolicy-controller/internal/controller"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
+	agenticv1alpha1 "sigs.k8s.io/kube-agentic-networking/api/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -182,11 +182,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controller.XAccessPolicyReconciler{
+	if err := (&controller.AccessPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "Failed to create controller", "controller", "xaccesspolicy")
+		setupLog.Error(err, "Failed to create controller", "controller", "accesspolicy")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

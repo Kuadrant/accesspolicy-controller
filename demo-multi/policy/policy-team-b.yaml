@@ -1,6 +1,6 @@
 ---
 apiVersion: agentic.networking.x-k8s.io/v1alpha1
-kind: XAccessPolicy
+kind: AccessPolicy
 metadata:
   name: team-b-policy
   namespace: quickstart-ns

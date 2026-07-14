@@ -52,27 +52,30 @@ spec:
         serviceAccount:
           name: default
       authorization:
-        type: CEL
-        cel:
-          expression: "request.mcp.tool_name == 'get-sum'"
+        type: Inline
+        mcp:
+          methods:
+            - name: tools/call
+              params: ["get-sum"]
     - name: allow-echo
       source:
         type: ServiceAccount
         serviceAccount:
           name: default
       authorization:
-        type: CEL
-        cel:
-          expression: "request.mcp.tool_name == 'echo'"
+        type: Inline
+        mcp:
+          methods:
+            - name: tools/call
+              params: ["echo"]
     - name: allow-non-tools
       source:
         type: ServiceAccount
         serviceAccount:
           name: default
       authorization:
-        type: CEL
-        cel:
-          expression: "!(has(request.headers) && 'x-mcp-toolname' in request.headers) || request.headers['x-mcp-toolname'] == ''"
+        type: Inline
+        mcpBaseProtocolMethodsOption: MATCH_BASE_PROTOCOL_METHODS
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: ReferenceGrant

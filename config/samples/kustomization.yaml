@@ -1,4 +1,4 @@
 ## Append samples of your project ##
 resources:
-- agentic_v1alpha1_xaccesspolicy.yaml
+- agentic_v1alpha1_accesspolicy.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

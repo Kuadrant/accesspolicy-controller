@@ -20,24 +20,27 @@ spec:
         serviceAccount:
           name: default
       authorization:
-        type: CEL
-        cel:
-          expression: "request.mcp.tool_name == 'get-sum'"
+        type: Inline
+        mcp:
+          methods:
+            - name: tools/call
+              params: ["get-sum"]
     - name: allow-get-tiny-image
       source:
         type: ServiceAccount
         serviceAccount:
           name: default
       authorization:
-        type: CEL
-        cel:
-          expression: "request.mcp.tool_name == 'get-tiny-image'"
+        type: Inline
+        mcp:
+          methods:
+            - name: tools/call
+              params: ["get-tiny-image"]
     - name: allow-non-tools
       source:
         type: ServiceAccount
         serviceAccount:
           name: default
       authorization:
-        type: CEL
-        cel:
-          expression: "!(has(request.headers) && 'x-mcp-toolname' in request.headers) || request.headers['x-mcp-toolname'] == ''"
+        type: Inline
+        mcpBaseProtocolMethodsOption: MATCH_BASE_PROTOCOL_METHODS
