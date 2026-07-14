@@ -92,69 +92,55 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	r.updateStatus(&policy, agenticv1alpha1.PolicyConditionResolvedRefs, metav1.ConditionTrue, agenticv1alpha1.PolicyReasonResolved, "Gateway found")
 
-	// Fetch all XAccessPolicies targeting this gateway
-	var policyList agenticv1alpha1.XAccessPolicyList
-	if err := r.List(ctx, &policyList, client.InNamespace(policy.Namespace)); err != nil {
-		return ctrl.Result{}, err
-	}
-
 	var allowPredicates []string
 	var denyPredicates []string
 	allValid := true
 
-	for i := range policyList.Items {
-		p := &policyList.Items[i]
-		if len(p.Spec.TargetRefs) == 0 || string(p.Spec.TargetRefs[0].Name) != gateway.Name {
+	p := &policy
+
+	for _, rule := range p.Spec.Rules {
+		if rule.Source.Type == agenticv1alpha1.AuthorizationSourceTypeSPIFFE {
 			continue
 		}
-		if p.Spec.Action == agenticv1alpha1.ActionTypeExternalAuth {
-			continue
-		}
 
-		for _, rule := range p.Spec.Rules {
-			if rule.Source.Type == agenticv1alpha1.AuthorizationSourceTypeSPIFFE {
-				continue
-			}
+		// Bypass source identity check for MVP since we are only testing Tool Name auth via anonymous proxy
+		var ruleExpr string
 
-			// Bypass source identity check for MVP since we are only testing Tool Name auth via anonymous proxy
-			var ruleExpr string
-
-			var authExpr string
-			if rule.Authorization != nil {
-				if string(rule.Authorization.Type) == "CEL" && rule.Authorization.CEL != nil {
-					authExpr = rule.Authorization.CEL.Expression
-					// Translate MCP Tool Name pseudo-variable to a safe proxy HTTP header check
-					safeHeaderCheck := "(has(request.headers) && 'x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] : '')"
-					authExpr = strings.ReplaceAll(authExpr, "request.mcp.tool_name", safeHeaderCheck)
-				} else if string(rule.Authorization.Type) == "Inline" {
-					var methodExprs []string
-					for _, m := range rule.Authorization.MCP.Methods {
-						if string(m.Name) == "tools/call" && len(m.Params) > 0 {
-							methodExprs = append(methodExprs, fmt.Sprintf("request.headers['x-mcp-toolname'] == '%s'", m.Params[0]))
-						}
-					}
-					if len(methodExprs) > 0 {
-						authExpr = strings.Join(methodExprs, " || ")
+		var authExpr string
+		if rule.Authorization != nil {
+			if string(rule.Authorization.Type) == "CEL" && rule.Authorization.CEL != nil {
+				authExpr = rule.Authorization.CEL.Expression
+				// Translate MCP Tool Name pseudo-variable to a safe proxy HTTP header check
+				safeHeaderCheck := "(has(request.headers['x-mcp-toolname']) ? request.headers['x-mcp-toolname'] : '')"
+				authExpr = strings.ReplaceAll(authExpr, "request.mcp.tool_name", safeHeaderCheck)
+			} else if string(rule.Authorization.Type) == "Inline" {
+				var methodExprs []string
+				for _, m := range rule.Authorization.MCP.Methods {
+					if string(m.Name) == "tools/call" && len(m.Params) > 0 {
+						methodExprs = append(methodExprs, fmt.Sprintf("has(request.headers['x-mcp-toolname']) && request.headers['x-mcp-toolname'] == '%s'", m.Params[0]))
 					}
 				}
+				if len(methodExprs) > 0 {
+					authExpr = strings.Join(methodExprs, " || ")
+				}
 			}
+		}
 
-			finalExpr := ""
-			if ruleExpr != "" && authExpr != "" {
-				finalExpr = fmt.Sprintf("(%s) && (%s)", ruleExpr, authExpr)
-			} else if ruleExpr != "" {
-				finalExpr = ruleExpr
-			} else if authExpr != "" {
-				finalExpr = authExpr
-			} else {
-				finalExpr = "true"
-			}
+		finalExpr := ""
+		if ruleExpr != "" && authExpr != "" {
+			finalExpr = fmt.Sprintf("(%s) && (%s)", ruleExpr, authExpr)
+		} else if ruleExpr != "" {
+			finalExpr = ruleExpr
+		} else if authExpr != "" {
+			finalExpr = authExpr
+		} else {
+			finalExpr = "true"
+		}
 
-			if p.Spec.Action == agenticv1alpha1.ActionTypeAllow || p.Spec.Action == "" {
-				allowPredicates = append(allowPredicates, finalExpr)
-			} else if string(p.Spec.Action) == "Deny" {
-				denyPredicates = append(denyPredicates, finalExpr)
-			}
+		if p.Spec.Action == agenticv1alpha1.ActionTypeAllow || p.Spec.Action == "" {
+			allowPredicates = append(allowPredicates, finalExpr)
+		} else if string(p.Spec.Action) == "Deny" {
+			denyPredicates = append(denyPredicates, finalExpr)
 		}
 	}
 
@@ -181,7 +167,7 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		})
 	}
 
-	authPolicyName := fmt.Sprintf("%s-auth", gateway.Name)
+	authPolicyName := fmt.Sprintf("%s-auth", policy.Name)
 	authPolicy := &kuadrantv1.AuthPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      authPolicyName,
