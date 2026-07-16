@@ -92,15 +92,8 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Enforcement of ExternalAuth limits (only one allowed)
 	if policy.Spec.Action == agenticv1alpha1.ActionTypeExternalAuth {
-		for _, p := range policyList.Items {
-			if len(p.Spec.TargetRefs) > 0 && string(p.Spec.TargetRefs[0].Name) == gateway.Name && p.Spec.Action == agenticv1alpha1.ActionTypeExternalAuth {
-				// If another ExternalAuth policy exists and is older than this one
-				if p.UID != policy.UID && p.CreationTimestamp.Before(&policy.CreationTimestamp) {
-					r.updateStatus(&policy, targetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, agenticv1alpha1.PolicyLimitPerTargetExceeded, "Another ExternalAuth policy already targets this Gateway")
-					return ctrl.Result{}, r.Status().Update(ctx, &policy)
-				}
-			}
-		}
+		r.updateStatus(&policy, targetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1.PolicyReasonInvalid, "ExternalAuth action is out of scope and not supported")
+		return ctrl.Result{}, r.Status().Update(ctx, &policy)
 	}
 
 	var allowPredicates []string
@@ -109,12 +102,24 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	for i := range policyList.Items {
 		p := &policyList.Items[i]
-		if len(p.Spec.TargetRefs) == 0 || string(p.Spec.TargetRefs[0].Name) != gateway.Name {
+		if len(p.Spec.TargetRefs) == 0 {
 			continue
 		}
+
+		isTargetingGateway := false
+		for _, targetRef := range p.Spec.TargetRefs {
+			if string(targetRef.Kind) == gatewayKind && string(targetRef.Name) == gateway.Name {
+				isTargetingGateway = true
+				break
+			}
+		}
+
+		if !isTargetingGateway {
+			continue
+		}
+
 		if p.Spec.Action == agenticv1alpha1.ActionTypeExternalAuth {
-			// ExternalAuth is effectively ignored for generating the AuthPolicy combined-rules here
-			// because Kuadrant handles it differently. We just skip generating rules for it.
+			// Skip processing ExternalAuth policies for generating AuthPolicy combined-rules
 			continue
 		}
 
@@ -329,13 +334,16 @@ func (r *AccessPolicyReconciler) findPoliciesForGateway(ctx context.Context, obj
 
 	var requests []reconcile.Request
 	for _, p := range policyList.Items {
-		if len(p.Spec.TargetRefs) > 0 && string(p.Spec.TargetRefs[0].Name) == gateway.Name {
-			requests = append(requests, reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Name:      p.Name,
-					Namespace: p.Namespace,
-				},
-			})
+		for _, targetRef := range p.Spec.TargetRefs {
+			if string(targetRef.Name) == gateway.Name {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Name:      p.Name,
+						Namespace: p.Namespace,
+					},
+				})
+				break // Only need to enqueue this policy once
+			}
 		}
 	}
 	return requests
