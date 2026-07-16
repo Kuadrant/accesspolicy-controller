@@ -1,4 +1,4 @@
-module github.com/vibhor-5/accesspolicy-controller
+module github.com/Kuadrant/accesspolicy-controller
 
 go 1.26.4
 

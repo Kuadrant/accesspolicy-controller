@@ -1,4 +1,4 @@
-module github.com/vibhor-5/accesspolicy-controller/test/conformance
+module github.com/Kuadrant/accesspolicy-controller/test/conformance
 
 go 1.26.0
 

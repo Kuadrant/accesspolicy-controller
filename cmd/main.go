@@ -36,7 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	kuadrantv1 "github.com/kuadrant/kuadrant-operator/api/v1"
-	"github.com/vibhor-5/accesspolicy-controller/internal/controller"
+	"github.com/Kuadrant/accesspolicy-controller/internal/controller"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	agenticv1alpha1 "sigs.k8s.io/kube-agentic-networking/api/v1alpha1"
 	// +kubebuilder:scaffold:imports

@@ -30,7 +30,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/vibhor-5/accesspolicy-controller/test/utils"
+	"github.com/Kuadrant/accesspolicy-controller/test/utils"
 )
 
 // namespace where the project is deployed in
