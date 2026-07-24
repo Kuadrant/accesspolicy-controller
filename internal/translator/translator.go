@@ -1,53 +1,32 @@
 package translator
 
 import (
-	"regexp"
 	"strings"
 
-	"github.com/kuadrant/authorino/api/v1beta3"
+	"github.com/google/cel-go/cel"
 )
 
-const mcpToolnameSelector = "context.request.http.headers.x-mcp-toolname"
-
-var toolNameRegex = regexp.MustCompile(`request\.mcp\.tool_name\s*==\s*'([^']+)'`)
-
-// TranslateCEL converts our custom policy CEL expressions into Authorino Pattern Expressions
-func TranslateCEL(expression string) v1beta3.PatternExpressionOrRef {
-	// 1. Check for empty/missing tool name (non-tools)
-	if strings.Contains(expression, "== ''") {
-		return v1beta3.PatternExpressionOrRef{
-			PatternExpression: v1beta3.PatternExpression{
-				Selector: mcpToolnameSelector,
-				Operator: v1beta3.PatternExpressionOperator("eq"),
-				Value:    "",
-			},
-		}
-	}
-
-	// 2. Extract tool name using regex
-	matches := toolNameRegex.FindStringSubmatch(expression)
-	if len(matches) > 1 {
-		toolName := matches[1]
-		return v1beta3.PatternExpressionOrRef{
-			PatternExpression: v1beta3.PatternExpression{
-				Selector: mcpToolnameSelector,
-				Operator: v1beta3.PatternExpressionOperator("eq"),
-				Value:    toolName,
-			},
-		}
-	}
-
-	// Default to failing pattern if we can't parse it
-	return v1beta3.PatternExpressionOrRef{
-		PatternExpression: v1beta3.PatternExpression{
-			Selector: mcpToolnameSelector,
-			Operator: v1beta3.PatternExpressionOperator("eq"),
-			Value:    "UNKNOWN_PATTERN",
-		},
-	}
+// TranslateCEL translates domain-specific MCP variables into data-plane variables.
+func TranslateCEL(expr string) string {
+	// Translate "request.mcp.tool_name" -> "(has(request.headers) && 'x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] : '')"
+	safeHeaderCheck := "(has(request.headers) && 'x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] : '')"
+	return strings.ReplaceAll(expr, "request.mcp.tool_name", safeHeaderCheck)
 }
 
-// ValidateCEL is a dummy for now since we aren't using raw CEL anymore
-func ValidateCEL(expression string) error {
+// ValidateCEL checks if the CEL expression has valid syntax.
+// We only perform syntax validation, not semantic/type validation.
+func ValidateCEL(expr string) error {
+	// Initialize a minimal CEL environment
+	env, err := cel.NewEnv()
+	if err != nil {
+		return err
+	}
+
+	ast, iss := env.Parse(expr)
+	if iss != nil && iss.Err() != nil {
+		return iss.Err()
+	}
+	_ = ast
+
 	return nil
 }

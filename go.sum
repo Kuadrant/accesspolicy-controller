@@ -95,8 +95,6 @@ github.com/kuadrant/authorino-operator v0.21.0 h1:wjb0lAF7ZzP8Rgc7rbJkGf+1PL2StS
 github.com/kuadrant/authorino-operator v0.21.0/go.mod h1:elsjAwIFdLDDu9ljq5S28LJIekhtVqeCA7AlaqPTL3U=
 github.com/kuadrant/dns-operator v0.10.0 h1:3NfHauZ7bnldfNPcd5rlreU9vVV9yKTGl8M0O+k1cKk=
 github.com/kuadrant/dns-operator v0.10.0/go.mod h1:7JmHQZJC9JUwzb0ZCZRml6qy6oDkOGU+lMeX2+2cgu0=
-github.com/kuadrant/kuadrant-operator v0.1.1-0.20260709184905-41ffdf02ea19 h1:Fnexv1GO7LQa9NSnztVKaESPtY1Vbyjo8mzABaz53pE=
-github.com/kuadrant/kuadrant-operator v0.1.1-0.20260709184905-41ffdf02ea19/go.mod h1:W/RL3Uxjh0vXfqOdA4P2k3dxaByu/k9yiBzP8z8bxXM=
 github.com/kuadrant/limitador-operator v0.15.0 h1:BWgYKV0iasFY3+zKQhLpTdfIlI2pD4MuGr8Hc30ypfg=
 github.com/kuadrant/limitador-operator v0.15.0/go.mod h1:58b5gdSemjXUijd2TBPKBwaQskU7rynHGHD7rTqk2OE=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
@@ -270,12 +268,10 @@ sigs.k8s.io/controller-runtime v0.24.1 h1:miPEwrmirImAvgME1L9qebGHrOnGJoVmVdtOU9
 sigs.k8s.io/controller-runtime v0.24.1/go.mod h1:vFkfY5fGt5xAC/sKb8IBFKgWPNKG9OUG29dR8Y2wImw=
 sigs.k8s.io/external-dns v0.14.0 h1:pgY3DdyoBei+ej1nyZUzRt9ECm9RRwb9s6/CPWe51tc=
 sigs.k8s.io/external-dns v0.14.0/go.mod h1:d4Knr/BFz8U1Lc6yLhCzTRP6nJOz6fqR/MnqqJPcIlU=
-sigs.k8s.io/gateway-api v1.1.0 h1:DsLDXCi6jR+Xz8/xd0Z1PYl2Pn0TyaFMOPPZIj4inDM=
-sigs.k8s.io/gateway-api v1.1.0/go.mod h1:ZH4lHrL2sDi0FHZ9jjneb8kKnGzFWyrTya35sWUTrRs=
+sigs.k8s.io/gateway-api v1.5.1 h1:RqVRIlkhLhUO8wOHKTLnTJA6o/1un4po4/6M1nRzdd0=
+sigs.k8s.io/gateway-api v1.5.1/go.mod h1:GvCETiaMAlLym5CovLxGjS0NysqFk3+Yuq3/rh6QL2o=
 sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 h1:IpInykpT6ceI+QxKBbEflcR5EXP7sU1kvOlxwZh5txg=
 sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730/go.mod h1:mdzfpAEoE6DHQEN0uh9ZbOCuHbLK5wOm7dK4ctXE9Tg=
-sigs.k8s.io/kube-agentic-networking v0.1.0 h1:qA1gk5POHdJOhKW/ITQ+NlBiW1xdrCpq5kumBfxhXzA=
-sigs.k8s.io/kube-agentic-networking v0.1.0/go.mod h1:lKC/qz+D4Szrng91OEEqy3/y+OK7VvMTX8V4Q4TERcY=
 sigs.k8s.io/randfill v1.0.0 h1:JfjMILfT8A6RbawdsK2JXGBR5AQVfd+9TbzrlneTyrU=
 sigs.k8s.io/randfill v1.0.0/go.mod h1:XeLlZ/jmk4i1HRopwe7/aU3H5n1zNUcX6TM94b3QxOY=
 sigs.k8s.io/structured-merge-diff/v6 v6.3.2 h1:kwVWMx5yS1CrnFWA/2QHyRVJ8jM6dBA80uLmm0wJkk8=

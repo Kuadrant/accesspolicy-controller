@@ -3,6 +3,7 @@ module github.com/Kuadrant/accesspolicy-controller
 go 1.26.4
 
 require (
+	github.com/google/cel-go v0.28.1
 	github.com/kuadrant/authorino v0.26.0
 	github.com/kuadrant/kuadrant-operator v0.1.1-0.20260709184905-41ffdf02ea19
 	github.com/onsi/ginkgo/v2 v2.28.0
@@ -37,7 +38,6 @@ require (
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.1 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
-	github.com/google/cel-go v0.28.1 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20260115054156-294ebfa9ad83 // indirect
@@ -114,6 +114,8 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace sigs.k8s.io/gateway-api => sigs.k8s.io/gateway-api v1.1.0
-
 replace github.com/kuadrant/policy-machinery => ./policy-machinery-fork
+
+replace sigs.k8s.io/kube-agentic-networking => ../kube-agentic-networking
+
+replace github.com/kuadrant/kuadrant-operator => ../kuadrant-operator-fork
