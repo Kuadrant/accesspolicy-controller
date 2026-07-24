@@ -34,8 +34,9 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	agenticv1alpha1 "sigs.k8s.io/kube-agentic-networking/api/v1alpha1"
+	agenticv1alpha1 "github.com/Kuadrant/accesspolicy-controller/api/v1alpha1"
 
 	authorinov1beta3 "github.com/kuadrant/authorino/api/v1beta3"
 	kuadrantv1 "github.com/kuadrant/kuadrant-operator/api/v1"
@@ -120,8 +121,8 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	for i := range targetedPolicies {
 		p := &targetedPolicies[i]
-		
-		var currentTargetRef gatewayapiv1.LocalPolicyTargetReferenceWithSectionName
+
+		var currentTargetRef gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName
 		for _, targetRef := range p.Spec.TargetRefs {
 			if string(targetRef.Kind) == gatewayKind && string(targetRef.Name) == gateway.Name {
 				currentTargetRef = targetRef
@@ -130,7 +131,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 
 		if p.Spec.Action == agenticv1alpha1.ActionTypeExternalAuth {
-			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1.PolicyReasonInvalid, "ExternalAuth action is out of scope and not supported")
+			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "ExternalAuth action is out of scope and not supported")
 			_ = r.Status().Update(ctx, p)
 			continue
 		}
@@ -156,7 +157,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					authExpr := rule.Authorization.CEL.Expression
 					authExpr = translator.TranslateCEL(authExpr)
 					if err := translator.ValidateCEL(authExpr); err != nil {
-						r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1.PolicyReasonInvalid, "Invalid CEL: "+err.Error())
+						r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "Invalid CEL: "+err.Error())
 						_ = r.Status().Update(ctx, p)
 						allValid = false
 						break
@@ -213,8 +214,10 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			ruleKey := fmt.Sprintf("%s-%s", p.Name, rule.Name)
 			authorizations[ruleKey] = kuadrantv1.MergeableAuthorizationSpec{
 				AuthorizationSpec: authorinov1beta3.AuthorizationSpec{
-					Priority: priority,
-					When:     whenPredicates,
+					CommonEvaluatorSpec: authorinov1beta3.CommonEvaluatorSpec{
+						Priority:   priority,
+						Conditions: whenPredicates,
+					},
 					AuthorizationMethodSpec: authorinov1beta3.AuthorizationMethodSpec{
 						Opa: &authorinov1beta3.OpaAuthorizationSpec{
 							Rego: regoRule,
@@ -233,9 +236,11 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Fail-close rule
 	authorizations["fail-close"] = kuadrantv1.MergeableAuthorizationSpec{
 		AuthorizationSpec: authorinov1beta3.AuthorizationSpec{
-			Priority: priority,
-			When: []authorinov1beta3.PatternExpressionOrRef{
-				{CelPredicate: authorinov1beta3.CelPredicate{Predicate: "size(auth.authorization) == 0"}},
+			CommonEvaluatorSpec: authorinov1beta3.CommonEvaluatorSpec{
+				Priority: priority,
+				Conditions: []authorinov1beta3.PatternExpressionOrRef{
+					{CelPredicate: authorinov1beta3.CelPredicate{Predicate: "size(auth.authorization) == 0"}},
+				},
 			},
 			AuthorizationMethodSpec: authorinov1beta3.AuthorizationMethodSpec{
 				Opa: &authorinov1beta3.OpaAuthorizationSpec{
@@ -253,8 +258,10 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 						Audiences: []string{"https://kubernetes.default.svc.cluster.local"},
 					},
 				},
-				When: []authorinov1beta3.PatternExpressionOrRef{
-					{CelPredicate: authorinov1beta3.CelPredicate{Predicate: "'authorization' in request.headers && request.headers['authorization'].startsWith('Bearer ')"}},
+				CommonEvaluatorSpec: authorinov1beta3.CommonEvaluatorSpec{
+					Conditions: []authorinov1beta3.PatternExpressionOrRef{
+						{CelPredicate: authorinov1beta3.CelPredicate{Predicate: "'authorization' in request.headers && request.headers['authorization'].startsWith('Bearer ')"}},
+					},
 				},
 				Overrides: authorinov1beta3.ExtendedProperties{
 					"principal": authorinov1beta3.ValueOrSelector{Expression: "auth.identity.user.username"},
@@ -271,8 +278,10 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 						Expression: "source.principal",
 					},
 				},
-				When: []authorinov1beta3.PatternExpressionOrRef{
-					{CelPredicate: authorinov1beta3.CelPredicate{Predicate: "source.principal.startsWith('spiffe://')"}},
+				CommonEvaluatorSpec: authorinov1beta3.CommonEvaluatorSpec{
+					Conditions: []authorinov1beta3.PatternExpressionOrRef{
+						{CelPredicate: authorinov1beta3.CelPredicate{Predicate: "source.principal.startsWith('spiffe://')"}},
+					},
 				},
 				Overrides: authorinov1beta3.ExtendedProperties{
 					"principal": authorinov1beta3.ValueOrSelector{Expression: "source.principal"},
@@ -291,11 +300,11 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			log.Error(err, "unable to set owner reference")
 		}
 
-		authPolicy.Spec.TargetRef = gatewayapiv1.LocalPolicyTargetReferenceWithSectionName{
-			LocalPolicyTargetReference: gatewayapiv1.LocalPolicyTargetReference{
+		authPolicy.Spec.TargetRef = gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName{
+			LocalPolicyTargetReference: gatewayapiv1alpha2.LocalPolicyTargetReference{
 				Group: "gateway.networking.k8s.io",
 				Kind:  gatewayKind,
-				Name:  gatewayapiv1.ObjectName(gateway.Name),
+				Name:  gatewayapiv1alpha2.ObjectName(gateway.Name),
 			},
 		}
 
@@ -312,14 +321,14 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		// Update all valid policies with ProgramError
 		for _, p := range validPolicies {
-			var currentTargetRef gatewayapiv1.LocalPolicyTargetReferenceWithSectionName
+			var currentTargetRef gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName
 			for _, targetRef := range p.Spec.TargetRefs {
 				if string(targetRef.Kind) == gatewayKind && string(targetRef.Name) == gateway.Name {
 					currentTargetRef = targetRef
 					break
 				}
 			}
-			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1.PolicyReasonInvalid, "ProgramError: "+err.Error())
+			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "ProgramError: "+err.Error())
 			_ = r.Status().Update(ctx, p)
 		}
 		return ctrl.Result{}, err
@@ -329,7 +338,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Update successful status for all valid policies
 	for _, p := range validPolicies {
-		var currentTargetRef gatewayapiv1.LocalPolicyTargetReferenceWithSectionName
+		var currentTargetRef gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName
 		for _, targetRef := range p.Spec.TargetRefs {
 			if string(targetRef.Kind) == gatewayKind && string(targetRef.Name) == gateway.Name {
 				currentTargetRef = targetRef
@@ -343,8 +352,8 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, nil
 }
 
-func (r *AccessPolicyReconciler) updateStatus(policy *agenticv1alpha1.AccessPolicy, targetRef gatewayapiv1.LocalPolicyTargetReferenceWithSectionName, conditionType gatewayapiv1.PolicyConditionType, status metav1.ConditionStatus, reason gatewayapiv1.PolicyConditionReason, message string) {
-	var ancestor *gatewayapiv1.PolicyAncestorStatus
+func (r *AccessPolicyReconciler) updateStatus(policy *agenticv1alpha1.AccessPolicy, targetRef gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName, conditionType gatewayapiv1alpha2.PolicyConditionType, status metav1.ConditionStatus, reason gatewayapiv1alpha2.PolicyConditionReason, message string) {
+	var ancestor *gatewayapiv1alpha2.PolicyAncestorStatus
 
 	gwGroup := gatewayapiv1.Group("gateway.networking.k8s.io")
 	gwKind := gatewayapiv1.Kind("Gateway")
@@ -373,7 +382,7 @@ func (r *AccessPolicyReconciler) updateStatus(policy *agenticv1alpha1.AccessPoli
 	}
 
 	if ancestor == nil {
-		policy.Status.Ancestors = append(policy.Status.Ancestors, gatewayapiv1.PolicyAncestorStatus{
+		policy.Status.Ancestors = append(policy.Status.Ancestors, gatewayapiv1alpha2.PolicyAncestorStatus{
 			AncestorRef:    ancestorRef,
 			ControllerName: "agentic.networking.x-k8s.io/accesspolicy-controller",
 		})

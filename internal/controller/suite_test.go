@@ -33,9 +33,9 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	agenticv1alpha1 "github.com/Kuadrant/accesspolicy-controller/api/v1alpha1"
 	kuadrantv1 "github.com/kuadrant/kuadrant-operator/api/v1"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
-	agenticv1alpha1 "sigs.k8s.io/kube-agentic-networking/api/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 

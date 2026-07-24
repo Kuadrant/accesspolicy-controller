@@ -5,14 +5,13 @@ go 1.26.4
 require (
 	github.com/google/cel-go v0.28.1
 	github.com/kuadrant/authorino v0.26.0
-	github.com/kuadrant/kuadrant-operator v0.1.1-0.20260709184905-41ffdf02ea19
+	github.com/kuadrant/kuadrant-operator v0.0.0-00010101000000-000000000000
 	github.com/onsi/ginkgo/v2 v2.28.0
 	github.com/onsi/gomega v1.39.1
 	k8s.io/apimachinery v0.36.0
 	k8s.io/client-go v0.36.0
 	sigs.k8s.io/controller-runtime v0.24.1
-	sigs.k8s.io/gateway-api v1.5.1
-	sigs.k8s.io/kube-agentic-networking v0.1.0
+	sigs.k8s.io/gateway-api v1.2.1
 )
 
 require (
@@ -49,7 +48,7 @@ require (
 	github.com/kuadrant/authorino-operator v0.21.0 // indirect
 	github.com/kuadrant/dns-operator v0.10.0 // indirect
 	github.com/kuadrant/limitador-operator v0.15.0 // indirect
-	github.com/kuadrant/policy-machinery v0.9.1-0.20260709113812-ff4f79667a92 // indirect
+	github.com/kuadrant/policy-machinery v0.9.0 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/martinlindhe/base36 v1.1.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect

@@ -26,7 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	agenticv1alpha1 "sigs.k8s.io/kube-agentic-networking/api/v1alpha1"
+	agenticv1alpha1 "github.com/Kuadrant/accesspolicy-controller/api/v1alpha1"
+	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 var _ = Describe("AccessPolicy Controller", func() {
@@ -54,11 +55,11 @@ var _ = Describe("AccessPolicy Controller", func() {
 						Namespace: resourceNamespace,
 					},
 					Spec: agenticv1alpha1.AccessPolicySpec{
-						TargetRefs: []gatewayapiv1.LocalPolicyTargetReferenceWithSectionName{
+						TargetRefs: []gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName{
 							{
-								LocalPolicyTargetReference: gatewayapiv1.LocalPolicyTargetReference{
+								LocalPolicyTargetReference: gatewayapiv1alpha2.LocalPolicyTargetReference{
 									Group: "gateway.networking.k8s.io",
-									Kind:  gatewayapiv1.Kind(gatewayKind),
+									Kind:  gatewayapiv1alpha2.Kind(gatewayKind),
 									Name:  "test-gateway",
 								},
 							},
