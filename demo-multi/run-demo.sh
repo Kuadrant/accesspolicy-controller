@@ -158,13 +158,13 @@ kind load docker-image "${CONTROLLER_IMG}" --name "${CLUSTER_NAME}"
 success "Controller image built and loaded into Kind"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 6: Install XAccessPolicy CRDs
+# Step 6: Install AccessPolicy CRDs
 # ─────────────────────────────────────────────────────────────────────────────
-step "Installing XAccessPolicy CRDs"
+step "Installing AccessPolicy CRDs"
 
 cd "${PROJECT_ROOT}"
 make install
-success "XAccessPolicy CRDs installed"
+success "AccessPolicy CRDs installed"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 7: Deploy the controller
@@ -213,14 +213,14 @@ kubectl rollout status deployment/mcp-server \
 success "MCP server deployed and ready"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 11: Apply policy resources (Gateway + HTTPRoute + XAccessPolicies)
+# Step 11: Apply policy resources (Gateway + HTTPRoute + AccessPolicies)
 # ─────────────────────────────────────────────────────────────────────────────
-step "Applying Gateway & XAccessPolicies"
+step "Applying Gateway & AccessPolicies"
 
 kubectl apply -f "${SCRIPT_DIR}/policy/resources.yaml" --context "kind-${CLUSTER_NAME}"
 kubectl apply -f "${SCRIPT_DIR}/policy/policy-team-a.yaml" --context "kind-${CLUSTER_NAME}"
 kubectl apply -f "${SCRIPT_DIR}/policy/policy-team-b.yaml" --context "kind-${CLUSTER_NAME}"
-success "Gateway, HTTPRoute, and multiple XAccessPolicies applied"
+success "Gateway, HTTPRoute, and multiple AccessPolicies applied"
 
 info "Waiting for MCP Gateway extension and broker/router to be ready..."
 kubectl wait --for=condition=Ready --timeout=120s mcpgatewayextension/mcp-gateway-extension \
@@ -232,9 +232,9 @@ kubectl rollout status deployment/mcp-broker-router \
   --timeout=120s
 success "MCP Gateway extension ready"
 
-info "Waiting for XAccessPolicies to be accepted..."
+info "Waiting for AccessPolicies to be accepted..."
 sleep 3
-kubectl get xaccesspolicies -n "${NAMESPACE}" --context "kind-${CLUSTER_NAME}" || true
+kubectl get accesspolicies -n "${NAMESPACE}" --context "kind-${CLUSTER_NAME}" || true
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 12: Port-forward Gateway service
@@ -286,7 +286,7 @@ echo -e "  To visualize the policy enforcement, run the official MCP Inspector i
 echo -e "  ${CYAN}npx -y @modelcontextprotocol/inspector --transport sse --server-url http://localhost:${PORT_FORWARD_PORT}/sse${RESET}"
 echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-echo -e "${BOLD}  We applied two independent XAccessPolicies targeting the same Gateway!${RESET}"
+echo -e "${BOLD}  We applied two independent AccessPolicies targeting the same Gateway!${RESET}"
 echo -e "  - Team A allowed 'get-sum'"
 echo -e "  - Team B allowed 'echo'"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"

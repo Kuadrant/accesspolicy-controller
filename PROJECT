@@ -15,7 +15,7 @@ resources:
   controller: true
   domain: networking.x-k8s.io
   group: agentic
-  kind: XAccessPolicy
+  kind: AccessPolicy
   path: github.com/Kuadrant/accesspolicy-controller/api/v1alpha1
   version: v1alpha1
 version: "3"

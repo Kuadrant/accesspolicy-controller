@@ -3,7 +3,7 @@
 # dynamic policy updates. Apply with:
 #   kubectl apply -f quickstart/policy/updated-policy.yaml
 apiVersion: agentic.networking.x-k8s.io/v1alpha1
-kind: XAccessPolicy
+kind: AccessPolicy
 metadata:
   name: demo-access-policy
   namespace: quickstart-ns
@@ -43,4 +43,5 @@ spec:
           name: default
       authorization:
         type: Inline
-        mcpBaseProtocolMethodsOption: MATCH_BASE_PROTOCOL_METHODS
+        mcp:
+          mcpBaseProtocolMethodsOption: MATCH_BASE_PROTOCOL_METHODS

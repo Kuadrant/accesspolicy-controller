@@ -1,19 +1,19 @@
-# XAccessPolicy Controller
+# AccessPolicy Controller
 
-A Kubernetes controller that translates `XAccessPolicy` custom resources into Kuadrant `AuthPolicy` objects, enabling declarative, tool-level access control for MCP (Model Context Protocol) servers running behind [kuadrant/mcp-gateway](https://github.com/kuadrant/mcp-gateway).
+A Kubernetes controller that translates `AccessPolicy` custom resources into Kuadrant `AuthPolicy` objects, enabling declarative, tool-level access control for MCP (Model Context Protocol) servers running behind [kuadrant/mcp-gateway](https://github.com/kuadrant/mcp-gateway).
 
 ## Description
 
-The XAccessPolicy controller bridges the gap between high-level, gateway-agnostic MCP authorization intent and the concrete enforcement mechanisms provided by Kuadrant's Authorino. It watches `XAccessPolicy` resources that target `Gateway` objects and performs two key tasks:
+The AccessPolicy controller bridges the gap between high-level, gateway-agnostic MCP authorization intent and the concrete enforcement mechanisms provided by Kuadrant's Authorino. It watches `AccessPolicy` resources that target `Gateway` objects and performs two key tasks:
 
 1. **CEL Translation** — Converts domain-specific variables like `request.mcp.tool_name` into the data-plane equivalents (`request.headers['x-mcp-toolname']`) that Authorino can evaluate at runtime.
-2. **Policy Aggregation** — Combines multiple `XAccessPolicy` rules targeting the same Gateway into a single Kuadrant `AuthPolicy`, satisfying Kuadrant's 1:1 policy-to-target constraint.
+2. **Policy Aggregation** — Combines multiple `AccessPolicy` rules targeting the same Gateway into a single Kuadrant `AuthPolicy`, satisfying Kuadrant's 1:1 policy-to-target constraint.
 
 ### Architecture
 
 ```
 ┌──────────────┐     ┌────────────────────────┐     ┌────────────────┐
-│ XAccessPolicy│────▶│ AccessPolicy Controller│────▶│ AuthPolicy     │
+│ AccessPolicy│────▶│ AccessPolicy Controller│────▶│ AuthPolicy     │
 │ (user-facing)│     │  • CEL translation     │     │ (Kuadrant CRD) │
 └──────────────┘     │  • Policy aggregation  │     └───────┬────────┘
                      └────────────────────────┘             │
@@ -24,11 +24,11 @@ The XAccessPolicy controller bridges the gap between high-level, gateway-agnosti
                                                     └──────────────┘
 ```
 
-### Example XAccessPolicy
+### Example AccessPolicy
 
 ```yaml
 apiVersion: agentic.networking.x-k8s.io/v1alpha1
-kind: XAccessPolicy
+kind: AccessPolicy
 metadata:
   name: web-search-policy
 spec:
@@ -48,7 +48,7 @@ The controller translates `request.mcp.tool_name` → `request.headers['x-mcp-to
 
 ### Status Conditions
 
-The controller reports progress through standard Kubernetes conditions on each `XAccessPolicy`:
+The controller reports progress through standard Kubernetes conditions on each `AccessPolicy`:
 
 | Condition | Meaning |
 |-----------|---------|
@@ -74,7 +74,7 @@ This will:
 2. Install Gateway API CRDs, the Kuadrant operator, and MCP Gateway
 3. Build & deploy the accesspolicy-controller
 4. Deploy an MCP server with sample tools (`get-sum`, `echo`, `get-tiny-image`, etc.)
-5. Apply an `XAccessPolicy` that allows only `get-sum` and `echo`
+5. Apply an `AccessPolicy` that allows only `get-sum` and `echo`
 6. Port-forward the Envoy Gateway to `localhost:8080`
 
 ### Try it
@@ -111,7 +111,7 @@ make quickstart-clean
 
 ## Multi-Policy Aggregation Demo
 
-The AccessPolicy controller allows multiple `XAccessPolicy` custom resources to target the same Gateway. It aggregates all these policies into a single Kuadrant `AuthPolicy`.
+The AccessPolicy controller allows multiple `AccessPolicy` custom resources to target the same Gateway. It aggregates all these policies into a single Kuadrant `AuthPolicy`.
 
 To see this in action:
 
@@ -119,7 +119,7 @@ To see this in action:
 make demo-multi
 ```
 
-This demo deploys the same MCP infrastructure as the quickstart, but applies two independent `XAccessPolicy` resources created by different teams:
+This demo deploys the same MCP infrastructure as the quickstart, but applies two independent `AccessPolicy` resources created by different teams:
 - Team A's policy allows `get-sum`.
 - Team B's policy allows `echo`.
 
@@ -204,10 +204,10 @@ make install
 make run
 ```
 
-Then apply an `XAccessPolicy` in another terminal:
+Then apply an `AccessPolicy` in another terminal:
 
 ```sh
-kubectl apply -f config/samples/agentic_v1alpha1_xaccesspolicy.yaml
+kubectl apply -f config/samples/agentic_v1alpha1_accesspolicy.yaml
 ```
 
 ## Testing
@@ -283,23 +283,23 @@ is manually re-applied afterwards.
 ## Project Layout
 
 ```
-├── api/v1alpha1/               # XAccessPolicy CRD types and deepcopy
+├── api/v1alpha1/               # AccessPolicy CRD types and deepcopy
 ├── cmd/main.go                 # Manager entrypoint
 ├── config/
 │   ├── crd/bases/              # Generated CRD manifests (do not edit)
 │   ├── rbac/                   # Generated RBAC (do not edit)
-│   └── samples/                # Example XAccessPolicy CRs
+│   └── samples/                # Example AccessPolicy CRs
 ├── internal/
-│   ├── controller/             # XAccessPolicy reconciler
+│   ├── controller/             # AccessPolicy reconciler
 │   └── translator/             # CEL macro translation and validation
 ├── quickstart/                 # One-command demo environment
 │   ├── run-quickstart.sh       # Orchestration script (make quickstart)
 │   ├── kind-config.yaml        # Kind cluster config
 │   ├── agent/                  # ADK-based AI agent with web UI
 │   ├── mcpserver/              # MCP "everything" server
-│   └── policy/                 # Sample Gateway + XAccessPolicy resources
+│   └── policy/                 # Sample Gateway + AccessPolicy resources
 └── docs/                       # Project documentation
-    ├── user_guide.md           # How to use XAccessPolicy and write CEL rules
+    ├── user_guide.md           # How to use AccessPolicy and write CEL rules
     ├── design.md               # Architecture and design decisions
     ├── tasks.md                # Implementation task breakdown
     ├── implementation_guide.md # Step-by-step implementation guide

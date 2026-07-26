@@ -11,12 +11,12 @@ metadata:
   labels:
     app.kubernetes.io/name: accesspolicy
     app.kubernetes.io/managed-by: kustomize
-  name: xaccesspolicy-editor-role
+  name: accesspolicy-editor-role
 rules:
 - apiGroups:
   - agentic.agentic.networking.x-k8s.io
   resources:
-  - xaccesspolicies
+  - accesspolicies
   verbs:
   - create
   - delete
@@ -28,6 +28,6 @@ rules:
 - apiGroups:
   - agentic.agentic.networking.x-k8s.io
   resources:
-  - xaccesspolicies/status
+  - accesspolicies/status
   verbs:
   - get

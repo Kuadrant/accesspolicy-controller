@@ -35,7 +35,7 @@ spec:
           port: 3001
 ---
 apiVersion: agentic.networking.x-k8s.io/v1alpha1
-kind: XAccessPolicy
+kind: AccessPolicy
 metadata:
   name: demo-access-policy
   namespace: quickstart-ns
@@ -75,7 +75,8 @@ spec:
           name: default
       authorization:
         type: Inline
-        mcpBaseProtocolMethodsOption: MATCH_BASE_PROTOCOL_METHODS
+        mcp:
+          mcpBaseProtocolMethodsOption: MATCH_BASE_PROTOCOL_METHODS
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: ReferenceGrant

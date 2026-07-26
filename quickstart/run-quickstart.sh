@@ -241,9 +241,9 @@ kind load docker-image "${CONTROLLER_IMG}" --name "${CLUSTER_NAME}"
 success "Controller image built and loaded into Kind"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 6: Install XAccessPolicy CRDs
+# Step 6: Install AccessPolicy CRDs
 # ─────────────────────────────────────────────────────────────────────────────
-step "Installing XAccessPolicy CRDs"
+step "Installing AccessPolicy CRDs"
 
 cd "${PROJECT_ROOT}"
 for i in 1 2 3 4 5; do
@@ -252,7 +252,7 @@ for i in 1 2 3 4 5; do
   fi
   sleep 5
 done
-success "XAccessPolicy CRDs installed"
+success "AccessPolicy CRDs installed"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 7: Deploy the controller
@@ -320,9 +320,9 @@ kubectl rollout status deployment/mcp-server \
 success "MCP server deployed and ready"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 11: Apply policy resources (Gateway + HTTPRoute + XAccessPolicy)
+# Step 11: Apply policy resources (Gateway + HTTPRoute + AccessPolicy)
 # ─────────────────────────────────────────────────────────────────────────────
-step "Applying Gateway & XAccessPolicy"
+step "Applying Gateway & AccessPolicy"
 
 for i in 1 2 3 4 5; do
   if kubectl apply -f "${SCRIPT_DIR}/policy/resources.yaml" --context "kind-${CLUSTER_NAME}"; then
@@ -330,7 +330,7 @@ for i in 1 2 3 4 5; do
   fi
   sleep 5
 done
-success "Gateway, HTTPRoute, and XAccessPolicy applied"
+success "Gateway, HTTPRoute, and AccessPolicy applied"
 
 info "Waiting for MCP Gateway extension and broker/router to be ready..."
 kubectl wait --for=condition=Ready --timeout=120s mcpgatewayextension/mcp-gateway-extension \
@@ -342,9 +342,9 @@ kubectl rollout status deployment/mcp-broker-router \
   --timeout=120s
 success "MCP Gateway extension ready"
 
-info "Waiting for XAccessPolicy to be accepted..."
+info "Waiting for AccessPolicy to be accepted..."
 sleep 3
-kubectl get xaccesspolicies -n "${NAMESPACE}" --context "kind-${CLUSTER_NAME}" || true
+kubectl get accesspolicies -n "${NAMESPACE}" --context "kind-${CLUSTER_NAME}" || true
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 12: Port-forward Gateway service
