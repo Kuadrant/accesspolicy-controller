@@ -97,6 +97,8 @@ github.com/kuadrant/dns-operator v0.10.0 h1:3NfHauZ7bnldfNPcd5rlreU9vVV9yKTGl8M0
 github.com/kuadrant/dns-operator v0.10.0/go.mod h1:7JmHQZJC9JUwzb0ZCZRml6qy6oDkOGU+lMeX2+2cgu0=
 github.com/kuadrant/limitador-operator v0.15.0 h1:BWgYKV0iasFY3+zKQhLpTdfIlI2pD4MuGr8Hc30ypfg=
 github.com/kuadrant/limitador-operator v0.15.0/go.mod h1:58b5gdSemjXUijd2TBPKBwaQskU7rynHGHD7rTqk2OE=
+github.com/kuadrant/policy-machinery v0.9.0 h1:qsNqfzikW9a3HYZjV9fEHdcO3wQ3kmbFt9XpcsECl0o=
+github.com/kuadrant/policy-machinery v0.9.0/go.mod h1:r7V8wn8UwL80p1FHgJJR5R2daPz1NX3FBHsj80xMC/o=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/mailru/easyjson v0.9.1 h1:LbtsOm5WAswyWbvTEOqhypdPeZzHavpZx96/n553mR8=

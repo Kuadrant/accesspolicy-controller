@@ -113,8 +113,6 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/kuadrant/policy-machinery => ./policy-machinery-fork
-
 replace sigs.k8s.io/kube-agentic-networking => ../kube-agentic-networking
 
 replace github.com/kuadrant/kuadrant-operator => ../kuadrant-operator-fork
