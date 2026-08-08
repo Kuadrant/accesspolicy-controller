@@ -1,6 +1,7 @@
+version: "2"
 run:
   allow-parallel-runners: true
-  go: "1.23"
+  go: "1.25"
   timeout: 10m
 linters:
   default: none
@@ -15,6 +16,7 @@ linters:
     - govet
     - ineffassign
     - lll
+    - modernize
     - misspell
     - nakedret
     - prealloc
@@ -23,7 +25,12 @@ linters:
     - unconvert
     - unparam
     - unused
+    - logcheck
   settings:
+    custom:
+      logcheck:
+        type: "module"
+        description: Checks Go logging calls for Kubernetes logging conventions.
     depguard:
       rules:
         forbid-sort-pkg:
@@ -34,6 +41,10 @@ linters:
       rules:
         - name: comment-spacings
         - name: import-shadowing
+    modernize:
+      disable:
+        - omitzero
+        - newexpr
   exclusions:
     generated: lax
     rules:
