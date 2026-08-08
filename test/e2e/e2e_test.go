@@ -268,17 +268,20 @@ var _ = Describe("Manager", Ordered, func() {
 			Eventually(verifyMetricsAvailable, 2*time.Minute).Should(Succeed())
 		})
 
-		// +kubebuilder:scaffold:e2e-webhooks-checks
+		It("should successfully create an AccessPolicy", func() {
+			By("applying a sample AccessPolicy")
+			cmd := exec.Command("kubectl", "apply", "-f", "../../config/samples/agentic_v1alpha1_accesspolicy.yaml", "-n", namespace)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Failed to apply AccessPolicy sample")
 
-		// TODO: Customize the e2e test suite with scenarios specific to your project.
-		// Consider applying sample/CR(s) and check their status and/or verifying
-		// the reconciliation by using the metrics, i.e.:
-		// metricsOutput, err := getMetricsOutput()
-		// Expect(err).NotTo(HaveOccurred(), "Failed to retrieve logs from curl pod")
-		// Expect(metricsOutput).To(ContainSubstring(
-		//    fmt.Sprintf(`controller_runtime_reconcile_total{controller="%s",result="success"} 1`,
-		//    strings.ToLower(<Kind>),
-		// ))
+			By("verifying the AccessPolicy is created")
+			verifyAccessPolicy := func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "accesspolicy", "accesspolicy-sample", "-n", namespace)
+				_, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+			Eventually(verifyAccessPolicy, 2*time.Minute, time.Second).Should(Succeed())
+		})
 	})
 })
 
