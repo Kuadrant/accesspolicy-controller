@@ -19,7 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -58,6 +58,7 @@ type AccessPolicyReconciler struct {
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch
 // +kubebuilder:rbac:groups=kuadrant.io,resources=authpolicies,verbs=get;list;watch;create;update;patch;delete
 
+//nolint:gocyclo // Reconcile is naturally complex for this controller
 func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -105,8 +106,8 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// Sort policies by CreationTimestamp
-	sort.Slice(targetedPolicies, func(i, j int) bool {
-		return targetedPolicies[i].CreationTimestamp.Time.Before(targetedPolicies[j].CreationTimestamp.Time)
+	slices.SortFunc(targetedPolicies, func(a, b agenticv1alpha1.AccessPolicy) int {
+		return a.CreationTimestamp.Time.Compare(b.CreationTimestamp.Time)
 	})
 
 	authentications := make(map[string]kuadrantv1.MergeableAuthenticationSpec)
@@ -352,6 +353,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, nil
 }
 
+//nolint:unparam // conditionType is kept for signature consistency
 func (r *AccessPolicyReconciler) updateStatus(policy *agenticv1alpha1.AccessPolicy, targetRef gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName, conditionType gatewayapiv1alpha2.PolicyConditionType, status metav1.ConditionStatus, reason gatewayapiv1alpha2.PolicyConditionReason, message string) {
 	var ancestor *gatewayapiv1alpha2.PolicyAncestorStatus
 

@@ -270,7 +270,7 @@ var _ = Describe("Manager", Ordered, func() {
 
 		It("should successfully create an AccessPolicy", func() {
 			By("applying a sample AccessPolicy")
-			cmd := exec.Command("kubectl", "apply", "-f", "../../config/samples/agentic_v1alpha1_accesspolicy.yaml", "-n", namespace)
+			cmd := exec.Command("kubectl", "apply", "-f", "config/samples/agentic_v1alpha1_accesspolicy.yaml", "-n", namespace)
 			_, err := utils.Run(cmd)
 			Expect(err).NotTo(HaveOccurred(), "Failed to apply AccessPolicy sample")
 
