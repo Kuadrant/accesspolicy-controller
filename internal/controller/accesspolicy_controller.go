@@ -106,6 +106,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// Sort policies by CreationTimestamp
+	//nolint:staticcheck // QF1008: could remove embedded field "Time" from selector
 	slices.SortFunc(targetedPolicies, func(a, b agenticv1alpha1.AccessPolicy) int {
 		return a.CreationTimestamp.Time.Compare(b.CreationTimestamp.Time)
 	})
