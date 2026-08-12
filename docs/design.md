@@ -1,21 +1,21 @@
-# Lightweight Controller Design Doc: XAccessPolicy Controller
+# Lightweight Controller Design Doc: AccessPolicy Controller
 
 ## Overview
 
 ### Purpose
 
-The XAccessPolicy controller watches `XAccessPolicy` resources targeting `Gateway` objects and acts as a pluggable, gateway-aware translation layer. It translates gateway-agnostic MCP authorization rules into enforcement mechanisms specific to `mcp-gateway` (e.g., Envoy HTTP headers), ensuring a corresponding Kuadrant `AuthPolicy` exists to secure Model Context Protocol (MCP) servers on `kuadrant/mcp-gateway`.
+The AccessPolicy controller watches `AccessPolicy` resources targeting `Gateway` objects and acts as a pluggable, gateway-aware translation layer. It translates gateway-agnostic MCP authorization rules into enforcement mechanisms specific to `mcp-gateway` (e.g., Envoy HTTP headers), ensuring a corresponding Kuadrant `AuthPolicy` exists to secure Model Context Protocol (MCP) servers on `kuadrant/mcp-gateway`.
 
-Because Kuadrant’s `AuthPolicy` does not natively recognize `XAccessPolicy`'s domain-specific variables (like `request.mcp.tool_name`), the controller translates these custom variables into the gateway's native context variables (like `request.headers['x-mcp-toolname']`) using macro substitution, before embedding them into the `AuthPolicy`’s pattern matching predicates.
+Because Kuadrant’s `AuthPolicy` does not natively recognize `AccessPolicy`'s domain-specific variables (like `request.mcp.tool_name`), the controller translates these custom variables into the gateway's native context variables (like `request.headers['x-mcp-toolname']`) using macro substitution, before embedding them into the `AuthPolicy`’s pattern matching predicates.
 
 ### Scope
 
-- Watches `XAccessPolicy` resources
+- Watches `AccessPolicy` resources
 - Watches `Gateway` resources to ensure policy state reflects the underlying target
-- Translates `XAccessPolicy` domain-specific variables via macro substitution
-- Combines multiple `XAccessPolicies` targeting the same Gateway into a single Kuadrant `AuthPolicy`
+- Translates `AccessPolicy` domain-specific variables via macro substitution
+- Combines multiple `AccessPolicies` targeting the same Gateway into a single Kuadrant `AuthPolicy`
 - Validates Gateway target references
-- Updates status conditions on `XAccessPolicy`
+- Updates status conditions on `AccessPolicy`
 
 ### Out of Scope
 
@@ -32,7 +32,7 @@ Because Kuadrant’s `AuthPolicy` does not natively recognize `XAccessPolicy`'s 
 
 ```yaml
 apiVersion: agentic.networking.x-k8s.io/v1alpha1
-kind: XAccessPolicy
+kind: AccessPolicy
 metadata:
   name: demo-access-policy
 spec:
@@ -73,13 +73,13 @@ status:
 ## Reconciliation Logic
 
 ### Inputs
-- `XAccessPolicy`
+- `AccessPolicy`
 - `Gateway` (to verify existence and handle modifications)
 - `AuthPolicy` (to track existing state)
 
 ### Outputs
 - Create/update Kuadrant `AuthPolicy`
-- Update status of `XAccessPolicy`
+- Update status of `AccessPolicy`
 
 ### CEL Validation and Translation Strategy
 
@@ -89,21 +89,21 @@ Once translated, the controller will **only validate the syntactic correctness**
 The controller does **not** perform semantic validation or guarantee runtime success in the data plane. Since the control plane lacks runtime context, we accept any syntactically valid (compilable) expression. Runtime failures due to missing fields or logic errors are an accepted limitation, mitigated by documentation.
 
 ### Flow
-1. Fetch all `XAccessPolicy` resources targeting a specific `Gateway`.
+1. Fetch all `AccessPolicy` resources targeting a specific `Gateway`.
 2. Inspect `targetRefs` to ensure it targets a `Gateway`.
 3. Verify the referenced `Gateway` exists in the cluster.
-4. Translate domain-specific variables in the `XAccessPolicy` CEL expressions using macro substitution. *Note: The header population is handled by the `mcp-gateway` itself (via `ext_proc`) prior to authorization.*
+4. Translate domain-specific variables in the `AccessPolicy` CEL expressions using macro substitution. *Note: The header population is handled by the `mcp-gateway` itself (via `ext_proc`) prior to authorization.*
 5. Compile the translated CEL expression. If compilation fails (syntax error), set `Accepted=False` with `InvalidCEL`. If it compiles, accept it.
-6. Combine valid rules from multiple `XAccessPolicies` into a single, unified `AuthPolicy` to satisfy Kuadrant's 1:1 `AuthPolicy`-to-Target constraint.
+6. Combine valid rules from multiple `AccessPolicies` into a single, unified `AuthPolicy` to satisfy Kuadrant's 1:1 `AuthPolicy`-to-Target constraint.
 7. Compare the desired `AuthPolicy` with the existing `AuthPolicy`.
 8. Create/Update the `AuthPolicy` if needed via `CreateOrPatch`.
-9. Update `XAccessPolicy` status conditions.
+9. Update `AccessPolicy` status conditions.
 
 ### Pseudocode
 
 ```go
 func Reconcile() {
-    policies := getXAccessPoliciesForGateway()
+    policies := getAccessPoliciesForGateway()
     if len(policies) == 0 {
         return
     }
@@ -153,11 +153,11 @@ func translateCEL(expression string) string {
 ## Ownership
 
 ```text
-XAccessPolicy (Multiple)
+AccessPolicy (Multiple)
  └── AuthPolicy (Single Combined)
 ```
 
-The generated `AuthPolicy` receives owner references to the `XAccessPolicy` resources it represents. This delegates garbage collection to Kubernetes.
+The generated `AuthPolicy` receives owner references to the `AccessPolicy` resources it represents. This delegates garbage collection to Kubernetes.
 
 ---
 
@@ -165,10 +165,10 @@ The generated `AuthPolicy` receives owner references to the `XAccessPolicy` reso
 
 | Event | Action |
 |-------|--------|
-| `XAccessPolicy` created | Reconcile and combine policies for target |
-| `XAccessPolicy` updated | Reconcile and combine policies for target |
+| `AccessPolicy` created | Reconcile and combine policies for target |
+| `AccessPolicy` updated | Reconcile and combine policies for target |
 | `AuthPolicy` modified | Reconcile (Revert manual drift) |
-| `XAccessPolicy` deleted | Cleanup via K8s owner reference / Rebuild remaining |
+| `AccessPolicy` deleted | Cleanup via K8s owner reference / Rebuild remaining |
 | `Gateway` modified/deleted | Reconcile (Update `ResolvedRefs` condition) |
 
 ---
@@ -207,8 +207,8 @@ status:
 - Status condition calculation.
 
 ### Integration
-- Create `XAccessPolicy` → `AuthPolicy` created with translated CEL predicates.
-- Create multiple `XAccessPolicies` targeting same `Gateway` → Single `AuthPolicy` successfully combines rules.
-- Update `XAccessPolicy` CEL expressions → `AuthPolicy` predicates updated.
-- Delete target `Gateway` → `XAccessPolicy` status updates to `ResolvedRefs=False`.
+- Create `AccessPolicy` → `AuthPolicy` created with translated CEL predicates.
+- Create multiple `AccessPolicies` targeting same `Gateway` → Single `AuthPolicy` successfully combines rules.
+- Update `AccessPolicy` CEL expressions → `AuthPolicy` predicates updated.
+- Delete target `Gateway` → `AccessPolicy` status updates to `ResolvedRefs=False`.
 - (See `demo.md` for end-to-end integration flows using a local `mcp-gateway` environment.)

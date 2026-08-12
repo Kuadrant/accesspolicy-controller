@@ -130,66 +130,76 @@ Cleanup:
 make demo-multi-clean
 ```
 
-## Getting Started
+## Installation
+
+The AccessPolicy controller is distributed as a Kubernetes CRD and controller.
 
 ### Prerequisites
-- Go v1.24.6+
-- Docker v17.03+
-- kubectl v1.11.3+
 - Access to a Kubernetes v1.11.3+ cluster
 - [Gateway API](https://gateway-api.sigs.k8s.io/) CRDs installed
 - [Kuadrant Operator](https://docs.kuadrant.io/) deployed (provides `AuthPolicy` CRD and Authorino)
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+### Install via Release Manifest
+
+You can install the controller directly from the generated manifest in the `main` branch (or a specific release tag):
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/accesspolicy:tag
+kubectl apply -f https://raw.githubusercontent.com/kuadrant/accesspolicy-controller/main/dist/install.yaml
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don't work.
+### Install via Helm (Optional)
 
-**Install the CRDs into the cluster:**
+If you prefer using Helm, a chart is available in the `dist/chart` directory:
 
 ```sh
-make install
+git clone https://github.com/kuadrant/accesspolicy-controller.git
+cd accesspolicy-controller
+helm install accesspolicy-controller ./dist/chart -n accesspolicy-system --create-namespace
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+---
+
+## Development & Contributing
+
+If you want to contribute, build the project from source, or run it locally, follow these steps.
+
+### Developer Prerequisites
+- Go v1.24.6+
+- Docker v17.03+
+- kubectl v1.11.3+
+- Access to a Kubernetes cluster with Gateway API and Kuadrant installed
+
+### Building and Deploying from Source
+
+**1. Build and push your image to a registry you can access:**
 
 ```sh
-make deploy IMG=<some-registry>/accesspolicy:tag
+export IMG=<some-registry>/accesspolicy:tag
+make docker-build docker-push IMG=$IMG
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+**2. Deploy the CRDs and Controller to the cluster:**
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+```sh
+make deploy IMG=$IMG
+```
+
+> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin privileges.
+
+**Create instances of your solution:**
 
 ```sh
 kubectl apply -k config/samples/
 ```
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+### Uninstalling from Source Deployments
+
+**Delete the instances and controller:**
 
 ```sh
 kubectl delete -k config/samples/
-```
-
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
-make uninstall
-```
-
-**UnDeploy the controller from the cluster:**
-
-```sh
 make undeploy
+make uninstall
 ```
 
 ## Running Locally
@@ -236,49 +246,19 @@ Run the conformance tests (spins up a local Kind cluster, deploys the controller
 make test-conformance
 ```
 
-## Project Distribution
+### Generating Release Artifacts
 
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
+To generate the `dist/install.yaml` single-file installer:
 
 ```sh
-make build-installer IMG=<some-registry>/accesspolicy:tag
+make build-installer IMG=ghcr.io/kuadrant/accesspolicy-controller:latest
 ```
 
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
+To update the Helm chart when changing manifests:
 
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/vibhor-5/accesspolicy-controller/<tag or branch>/dist/install.yaml
+kubebuilder edit --plugins=helm/v2-alpha --force
 ```
-
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-kubebuilder edit --plugins=helm/v2-alpha
-```
-
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
-
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
 
 ## Project Layout
 

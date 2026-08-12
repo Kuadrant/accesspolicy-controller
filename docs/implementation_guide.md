@@ -1,9 +1,9 @@
 # Implementation Guide: CEL Validation & Translation
 
-This document provides technical guidance for implementing the CEL validation and translation requirements outlined in the `XAccessPolicy` controller design doc.
+This document provides technical guidance for implementing the CEL validation and translation requirements outlined in the `AccessPolicy` controller design doc.
 
 ## 1. CEL Macro Substitution
-The translation layer relies on mapping abstract `XAccessPolicy` variables to the native context provided by `mcp-gateway` (Envoy/Authorino headers).
+The translation layer relies on mapping abstract `AccessPolicy` variables to the native context provided by `mcp-gateway` (Envoy/Authorino headers).
 
 ```go
 package translator
@@ -84,7 +84,7 @@ In your reconciliation loop, combine translation and validation before creating 
 translatedExpr := translator.TranslateCEL(rule.Authorization.CEL.Expression)
 
 if err := translator.ValidateCEL(translatedExpr); err != nil {
-    // Record the error in the XAccessPolicy status condition
+    // Record the error in the AccessPolicy status condition
     meta.SetStatusCondition(&policy.Status.Conditions, metav1.Condition{
         Type:    string(agenticv1alpha1.PolicyConditionAccepted),
         Status:  metav1.ConditionFalse,
