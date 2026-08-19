@@ -352,6 +352,19 @@ const (
 	// This reason is used with the "Accepted" condition when the policy
 	// was rejected because it contains an invalid CEL expression.
 	PolicyReasonInvalidCEL gwapiv1.PolicyConditionReason = "InvalidCEL"
+
+	// PolicyConditionProgrammed indicated whether the policy's spec is guaranteed by the controller to
+	// be fully programmed for enforcement.
+	//
+	// Possible reasons for this condition to be True are:
+	//
+	// * "Programmed"
+	//
+	PolicyConditionProgrammed gwapiv1.PolicyConditionType = "Programmed"
+
+	// PolicyReasonProgrammed is used with the "Programmed" condition when the full spec of the policy has been
+	// programmed.
+	PolicyReasonProgrammed gwapiv1.PolicyConditionReason = "Programmed"
 )
 
 // AccessPolicyStatus defines the observed state of AccessPolicy.

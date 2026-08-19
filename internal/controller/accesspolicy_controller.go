@@ -134,6 +134,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 		if p.Spec.Action == agenticv1alpha1.ActionTypeExternalAuth {
 			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "ExternalAuth action is out of scope and not supported")
+			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionProgrammed, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "ExternalAuth action is out of scope and not supported")
 			_ = r.Status().Update(ctx, p)
 			continue
 		}
@@ -160,6 +161,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					authExpr = translator.TranslateCEL(authExpr)
 					if err := translator.ValidateCEL(authExpr); err != nil {
 						r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "Invalid CEL: "+err.Error())
+						r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionProgrammed, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "Invalid CEL: "+err.Error())
 						_ = r.Status().Update(ctx, p)
 						allValid = false
 						break
@@ -331,6 +333,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				}
 			}
 			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "ProgramError: "+err.Error())
+			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionProgrammed, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "ProgramError: "+err.Error())
 			_ = r.Status().Update(ctx, p)
 		}
 		return ctrl.Result{}, err
@@ -348,6 +351,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			}
 		}
 		r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionTrue, agenticv1alpha1.PolicyReasonAccepted, "Policy accepted and valid")
+		r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionProgrammed, metav1.ConditionTrue, agenticv1alpha1.PolicyReasonProgrammed, "Policy has been programmed successfully")
 		_ = r.Status().Update(ctx, p)
 	}
 
