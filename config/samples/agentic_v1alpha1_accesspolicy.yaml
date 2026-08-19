@@ -21,3 +21,13 @@ spec:
         type: CEL
         cel:
           expression: "request.mcp.tool_name == 'search_web'"
+    - name: allow-spiffe-client
+      source:
+        type: SPIFFE
+        spiffe: "spiffe://cluster.local/quickstart-ns/my-spiffe-client"
+      authorization:
+        type: Inline
+        mcp:
+          methods:
+            - name: tools/call
+              params: ["get-sum"]
