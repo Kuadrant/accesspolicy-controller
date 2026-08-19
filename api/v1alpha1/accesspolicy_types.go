@@ -365,6 +365,9 @@ const (
 	// PolicyReasonProgrammed is used with the "Programmed" condition when the full spec of the policy has been
 	// programmed.
 	PolicyReasonProgrammed gwapiv1.PolicyConditionReason = "Programmed"
+
+	// PolicyReasonPending is used with the "Programmed" condition when the policy is accepted but not yet fully programmed.
+	PolicyReasonPending gwapiv1.PolicyConditionReason = "Pending"
 )
 
 // AccessPolicyStatus defines the observed state of AccessPolicy.

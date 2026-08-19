@@ -332,8 +332,8 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					break
 				}
 			}
-			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "ProgramError: "+err.Error())
-			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionProgrammed, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "ProgramError: "+err.Error())
+			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionTrue, agenticv1alpha1.PolicyReasonAccepted, "Policy accepted and valid")
+			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionProgrammed, metav1.ConditionFalse, agenticv1alpha1.PolicyReasonPending, "ProgramError: "+err.Error())
 			_ = r.Status().Update(ctx, p)
 		}
 		return ctrl.Result{}, err
