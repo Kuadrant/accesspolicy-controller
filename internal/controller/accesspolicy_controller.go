@@ -166,6 +166,12 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 						allValid = false
 						break
 					}
+
+					if rule.Authorization.CEL.MCPBaseProtocolMethodsOption == agenticv1alpha1.MCPBaseProtocolMethodsOptionMatch {
+						baseMethodsExpr := "request.headers['x-mcp-method'] in ['initialize', 'tools/list', 'completion', 'logging', 'notifications', 'ping'] || request.method in ['GET', 'DELETE']"
+						authExpr = fmt.Sprintf("(%s) || (%s)", authExpr, baseMethodsExpr)
+					}
+
 					authExprs = append(authExprs, authExpr)
 				} else if string(rule.Authorization.Type) == "Inline" {
 					if rule.Authorization.MCP.MCPBaseProtocolMethodsOption == agenticv1alpha1.MCPBaseProtocolMethodsOptionMatch {

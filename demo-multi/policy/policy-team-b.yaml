@@ -20,3 +20,4 @@ spec:
         type: CEL
         cel:
           expression: "request.mcp.tool_name == 'echo'"
+          mcpBaseProtocolMethodsOption: MATCH_BASE_PROTOCOL_METHODS

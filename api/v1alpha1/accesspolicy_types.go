@@ -239,6 +239,12 @@ type AccessPolicyCELRule struct {
 	// Expression is the CEL expression to evaluate.
 	// +required
 	Expression string `json:"expression"`
+
+	// MCPBaseProtocolMethodsOption specifies whether to automatically allow base MCP protocol methods.
+	// Defaults to SKIP_BASE_PROTOCOL_METHODS if not specified.
+	// +optional
+	// +kubebuilder:default=SKIP_BASE_PROTOCOL_METHODS
+	MCPBaseProtocolMethodsOption MCPBaseProtocolMethodsOption `json:"mcpBaseProtocolMethodsOption,omitempty"`
 }
 
 // MCPAttributes defines the protocol-specific attributes for MCP authorization.

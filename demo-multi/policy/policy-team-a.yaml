@@ -20,12 +20,4 @@ spec:
         type: CEL
         cel:
           expression: "request.mcp.tool_name == 'get-sum'"
-    - name: allow-non-tools
-      source:
-        type: ServiceAccount
-        serviceAccount:
-          name: default
-      authorization:
-        type: CEL
-        cel:
-          expression: "!(has(request.headers) && 'x-mcp-toolname' in request.headers) || (has(request.headers) && request.headers['x-mcp-toolname'] == '')"
+          mcpBaseProtocolMethodsOption: MATCH_BASE_PROTOCOL_METHODS
