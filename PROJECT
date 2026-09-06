@@ -6,7 +6,7 @@ cliVersion: 4.15.0
 domain: networking.x-k8s.io
 layout:
 - go.kubebuilder.io/v4
-projectName: accesspolicy
+projectName: xaccesspolicy
 repo: github.com/Kuadrant/accesspolicy-controller
 resources:
 - api:
@@ -15,7 +15,7 @@ resources:
   controller: true
   domain: networking.x-k8s.io
   group: agentic
-  kind: AccessPolicy
+  kind: XAccessPolicy
   path: github.com/Kuadrant/accesspolicy-controller/api/v1alpha1
   version: v1alpha1
 version: "3"

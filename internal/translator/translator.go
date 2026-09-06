@@ -8,9 +8,14 @@ import (
 
 // TranslateCEL translates domain-specific MCP variables into data-plane variables.
 func TranslateCEL(expr string) string {
-	// Translate "request.mcp.tool_name" -> "(has(request.headers) && 'x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] : '')"
-	safeHeaderCheck := "(has(request.headers) && 'x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] : '')"
-	return strings.ReplaceAll(expr, "request.mcp.tool_name", safeHeaderCheck)
+	res := expr
+	safeToolName := "(has(request.headers) && 'x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] : '')"
+	safeMethod := "(has(request.headers) && 'x-mcp-method' in request.headers ? request.headers['x-mcp-method'] : '')"
+	res = strings.ReplaceAll(res, "request.mcp.tool_name", safeToolName)
+	res = strings.ReplaceAll(res, "request.mcp.toolName", safeToolName)
+	res = strings.ReplaceAll(res, "request.mcp.toolname", safeToolName)
+	res = strings.ReplaceAll(res, "request.mcp.method", safeMethod)
+	return res
 }
 
 // ValidateCEL checks if the CEL expression has valid syntax.

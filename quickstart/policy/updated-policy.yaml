@@ -3,7 +3,7 @@
 # dynamic policy updates. Apply with:
 #   kubectl apply -f quickstart/policy/updated-policy.yaml
 apiVersion: agentic.networking.x-k8s.io/v1alpha1
-kind: AccessPolicy
+kind: XAccessPolicy
 metadata:
   name: demo-access-policy
   namespace: quickstart-ns

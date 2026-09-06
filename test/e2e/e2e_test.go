@@ -268,15 +268,15 @@ var _ = Describe("Manager", Ordered, func() {
 			Eventually(verifyMetricsAvailable, 2*time.Minute).Should(Succeed())
 		})
 
-		It("should successfully create an AccessPolicy", func() {
-			By("applying a sample AccessPolicy")
-			cmd := exec.Command("kubectl", "apply", "-f", "config/samples/agentic_v1alpha1_accesspolicy.yaml", "-n", namespace)
+		It("should successfully create an XAccessPolicy", func() {
+			By("applying a sample XAccessPolicy")
+			cmd := exec.Command("kubectl", "apply", "-f", "config/samples/agentic_v1alpha1_xaccesspolicy.yaml", "-n", namespace)
 			_, err := utils.Run(cmd)
-			Expect(err).NotTo(HaveOccurred(), "Failed to apply AccessPolicy sample")
+			Expect(err).NotTo(HaveOccurred(), "Failed to apply XAccessPolicy sample")
 
-			By("verifying the AccessPolicy is created")
+			By("verifying the XAccessPolicy is created")
 			verifyAccessPolicy := func(g Gomega) {
-				cmd := exec.Command("kubectl", "get", "accesspolicy", "accesspolicy-sample", "-n", namespace)
+				cmd := exec.Command("kubectl", "get", "xaccesspolicy", "xaccesspolicy-sample", "-n", namespace)
 				_, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
 			}

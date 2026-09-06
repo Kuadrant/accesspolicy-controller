@@ -30,7 +30,7 @@ import (
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
-var _ = Describe("AccessPolicy Controller", func() {
+var _ = Describe("XAccessPolicy Controller", func() {
 	Context("When reconciling a resource", func() {
 		const (
 			resourceName      = "test-resource"
@@ -43,18 +43,18 @@ var _ = Describe("AccessPolicy Controller", func() {
 			Name:      resourceName,
 			Namespace: resourceNamespace,
 		}
-		accesspolicy := &agenticv1alpha1.AccessPolicy{}
+		xaccesspolicy := &agenticv1alpha1.XAccessPolicy{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind AccessPolicy")
-			err := k8sClient.Get(ctx, typeNamespacedName, accesspolicy)
+			By("creating the custom resource for the Kind XAccessPolicy")
+			err := k8sClient.Get(ctx, typeNamespacedName, xaccesspolicy)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &agenticv1alpha1.AccessPolicy{
+				resource := &agenticv1alpha1.XAccessPolicy{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: resourceNamespace,
 					},
-					Spec: agenticv1alpha1.AccessPolicySpec{
+					Spec: agenticv1alpha1.XAccessPolicySpec{
 						TargetRefs: []gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName{
 							{
 								LocalPolicyTargetReference: gatewayapiv1alpha2.LocalPolicyTargetReference{
@@ -65,7 +65,7 @@ var _ = Describe("AccessPolicy Controller", func() {
 							},
 						},
 						Action: "Allow",
-						Rules: []agenticv1alpha1.AccessRule{
+						Rules: []agenticv1alpha1.XAccessRule{
 							{
 								Name: "test-rule",
 								Source: agenticv1alpha1.AccessRuleSource{
@@ -76,7 +76,7 @@ var _ = Describe("AccessPolicy Controller", func() {
 								},
 								Authorization: &agenticv1alpha1.AuthorizationRule{
 									Type: agenticv1alpha1.AuthorizationRuleTypeCEL,
-									CEL: &agenticv1alpha1.AccessPolicyCELRule{
+									CEL: &agenticv1alpha1.XAccessPolicyCELRule{
 										Expression: "request.mcp.tool_name == 'search_web'",
 									},
 								},
@@ -89,17 +89,17 @@ var _ = Describe("AccessPolicy Controller", func() {
 		})
 
 		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &agenticv1alpha1.AccessPolicy{}
+			// Clean up logic after each test
+			resource := &agenticv1alpha1.XAccessPolicy{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance AccessPolicy")
+			By("Cleanup the specific resource instance XAccessPolicy")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &AccessPolicyReconciler{
+			controllerReconciler := &XAccessPolicyReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}

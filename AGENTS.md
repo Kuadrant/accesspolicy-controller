@@ -1,4 +1,4 @@
-# accesspolicy - AI Agent Guide
+# xaccesspolicy - AI Agent Guide
 
 ## Project Structure
 

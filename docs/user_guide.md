@@ -1,18 +1,18 @@
-# AccessPolicy User Guide
+# XAccessPolicy User Guide
 
-This guide explains how to use the `AccessPolicy` custom resource to control access to your Model Context Protocol (MCP) servers using the `accesspolicy-controller`.
+This guide explains how to use the `XAccessPolicy` custom resource to control access to your Model Context Protocol (MCP) servers using the `xaccesspolicy-controller`.
 
 ## Overview
 
-The `AccessPolicy` allows you to define declarative, tool-level access control for MCP servers running behind a Gateway. The policy uses Common Expression Language (CEL) to define rules. Our controller translates these high-level policies into Kuadrant `AuthPolicy` resources that are enforced at the data plane by Envoy and Authorino.
+The `XAccessPolicy` allows you to define declarative, tool-level access control for MCP servers running behind a Gateway. The policy uses Common Expression Language (CEL) to define rules. Our controller translates these high-level policies into Kuadrant `AuthPolicy` resources that are enforced at the data plane by Envoy and Authorino.
 
 ## Resource Structure
 
-A standard `AccessPolicy` contains two main sections: `targetRefs` and `rules`.
+A standard `XAccessPolicy` contains two main sections: `targetRefs` and `rules`.
 
 ```yaml
 apiVersion: agentic.networking.x-k8s.io/v1alpha1
-kind: AccessPolicy
+kind: XAccessPolicy
 metadata:
   name: example-policy
   namespace: my-namespace
@@ -52,7 +52,7 @@ Rules define what traffic is allowed through the Gateway to your MCP servers.
 
 ## The CEL Context
 
-When writing CEL expressions in your `AccessPolicy`, you have access to domain-specific MCP variables. 
+When writing CEL expressions in your `XAccessPolicy`, you have access to domain-specific MCP variables. 
 
 ### Supported Variables
 
@@ -71,13 +71,13 @@ When the controller reconciles your policy, it translates inline MCP method matc
 
 Kuadrant (the underlying enforcement engine) strictly requires a 1:1 mapping between an `AuthPolicy` and a target network object. 
 
-To simplify operations for developers, you can create **multiple** `AccessPolicy` resources targeting the same `Gateway`. The `accesspolicy-controller` will automatically aggregate all rules from all `XAccessPolicies` targeting that Gateway and merge them into a single underlying `AuthPolicy`.
+To simplify operations for developers, you can create **multiple** `XAccessPolicy` resources targeting the same `Gateway`. The `xaccesspolicy-controller` will automatically aggregate all rules from all `XXAccessPolicies` targeting that Gateway and merge them into a single underlying `AuthPolicy`.
 
 If *any* rule across all policies evaluates to `true`, the request is allowed (logical OR).
 
 ## Troubleshooting & Status
 
-You can check the status of your policy using `kubectl describe xaccesspolicy <name>`.
+You can check the status of your policy using `kubectl describe xxaccesspolicy <name>`.
 
 The controller reports standard Kubernetes conditions:
 

@@ -99,8 +99,8 @@ cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
 .PHONY: test-conformance
 test-conformance: setup-test-e2e manifests generate fmt vet ## Run the conformance tests. Expected an isolated environment using Kind.
 	@echo "Building and pushing docker image for conformance tests..."
-	$(MAKE) docker-build IMG=example.com/accesspolicy:v0.0.1
-	$(KIND) load docker-image example.com/accesspolicy:v0.0.1 --name $(KIND_CLUSTER)
+	$(MAKE) docker-build IMG=example.com/xaccesspolicy:v0.0.1
+	$(KIND) load docker-image example.com/xaccesspolicy:v0.0.1 --name $(KIND_CLUSTER)
 	@echo "Installing CRDs and deploying controller..."
 	@for i in 1 2 3 4 5; do \
 		kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml && break || sleep 5; \
@@ -124,7 +124,7 @@ test-conformance: setup-test-e2e manifests generate fmt vet ## Run the conforman
 	@sleep 5
 	@for i in 1 2 3 4 5; do kubectl apply -k 'https://github.com/Kuadrant/mcp-gateway/config/install?ref=main' && break || sleep 5; done
 	kubectl patch clusterrole mcp-controller --type='json' -p='[{"op": "add", "path": "/rules/-", "value": {"apiGroups": ["apps"], "resources": ["deployments"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]}}, {"op": "add", "path": "/rules/-", "value": {"apiGroups": [""], "resources": ["namespaces"], "verbs": ["get"]}}]' || true
-	$(MAKE) deploy IMG=example.com/accesspolicy:v0.0.1
+	$(MAKE) deploy IMG=example.com/xaccesspolicy:v0.0.1
 	@echo "Waiting for controller to be ready..."
 	kubectl wait --for=condition=Available deployment/accesspolicy-controller-manager -n accesspolicy-system --timeout=120s
 	@echo "Running conformance tests..."

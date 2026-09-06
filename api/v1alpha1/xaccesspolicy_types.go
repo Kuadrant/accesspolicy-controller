@@ -21,16 +21,17 @@ package v1alpha1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gwapiv1a2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
-// AccessPolicySpec defines the desired state of AccessPolicy.
+// XAccessPolicySpec defines the desired state of XAccessPolicy.
 //
 // Implementations SHOULD return a regular HTTP formatted response if the policy is enforced against non-MCP traffic.
 // Implementations MAY return a JSON-RPC formatted response if the policy is enforced against MCP traffic.
-type AccessPolicySpec struct {
-	// TargetRefs specifies the targets of the AccessPolicy.
-	// An AccessPolicy must target at least one resource.
+type XAccessPolicySpec struct {
+	// TargetRefs specifies the targets of the XAccessPolicy.
+	// An XAccessPolicy must target at least one resource.
 	// There is one kind of TargetRef with "Core" support:
 	//
 	// * Gateway
@@ -42,7 +43,7 @@ type AccessPolicySpec struct {
 	// +kubebuilder:validation:MaxItems=10
 	// +listType=atomic
 	// +kubebuilder:validation:XValidation:rule="self.all(ref, ref.kind == self[0].kind)",message="All targetRefs must have the same Kind"
-	TargetRefs []gwapiv1.LocalPolicyTargetReferenceWithSectionName `json:"targetRefs"`
+	TargetRefs []gwapiv1a2.LocalPolicyTargetReferenceWithSectionName `json:"targetRefs"`
 
 	// Action specifies the action to be taken when rules match.
 	// Evaluation logic:
@@ -51,9 +52,7 @@ type AccessPolicySpec struct {
 	// 3. If it allows the request, processing continues for all other allow policies for that target.
 	// 4. The request is allowed only if all allow policies allow it.
 	// +required
-	Action AccessPolicyActionType `json:"action"`
-
-	// ExternalAuth specifies an external auth filter to be used for authorization.
+	Action XAccessPolicyActionType `json:"action"`
 
 	// Rules defines a list of rules to be applied to the target.
 	// The interpretation of these rules depends on the Action:
@@ -64,19 +63,19 @@ type AccessPolicySpec struct {
 	// +kubebuilder:validation:MaxItems=10
 	// +listType=atomic
 	// +kubebuilder:validation:XValidation:rule="self.all(r, self.filter(x, x.name == r.name).size() == 1)",message="AccessRule names must be unique"
-	Rules []AccessRule `json:"rules,omitempty"`
+	Rules []XAccessRule `json:"rules,omitempty"`
 }
 
-// AccessPolicyActionType identifies a type of action for access policy.
+// XAccessPolicyActionType identifies a type of action for access policy.
 // +kubebuilder:validation:Enum=Allow;ExternalAuth
-type AccessPolicyActionType string
+type XAccessPolicyActionType string
 
 const (
 	// ActionTypeAllow is used to identify that the request should be allowed if rules match.
-	ActionTypeAllow AccessPolicyActionType = "Allow"
+	ActionTypeAllow XAccessPolicyActionType = "Allow"
 
 	// ActionTypeExternalAuth is used to identify that the request should be delegated to an external auth service if rules match.
-	ActionTypeExternalAuth AccessPolicyActionType = "ExternalAuth"
+	ActionTypeExternalAuth XAccessPolicyActionType = "ExternalAuth"
 )
 
 // +kubebuilder:validation:Enum=SKIP_BASE_PROTOCOL_METHODS;MATCH_BASE_PROTOCOL_METHODS
@@ -89,8 +88,8 @@ const (
 	MCPBaseProtocolMethodsOptionMatch MCPBaseProtocolMethodsOption = "MATCH_BASE_PROTOCOL_METHODS"
 )
 
-// AccessRule specifies an authorization rule for a specified target.
-type AccessRule struct {
+// XAccessRule specifies an authorization rule for a specified target.
+type XAccessRule struct {
 	// Name specifies the name of the rule.
 	// This follows the DNS Subdomain naming convention.
 	// See: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
@@ -175,6 +174,11 @@ type AuthorizationSourceServiceAccount struct {
 	Name string `json:"name"`
 }
 
+// PortNumber defines a network port.
+// +kubebuilder:validation:Minimum=1
+// +kubebuilder:validation:Maximum=65535
+type PortNumber int32
+
 // +kubebuilder:validation:XValidation:message="cel must be specified when type is set to 'CEL'",rule="self.type == 'CEL' ? has(self.cel) : true"
 // +kubebuilder:validation:XValidation:message="cel must not be specified when type is set to 'Inline'",rule="self.type == 'Inline' ? !has(self.cel) : true"
 // AuthorizationRule defines the specific authorization criteria that requests must meet.
@@ -189,7 +193,7 @@ type AuthorizationRule struct {
 	// +kubebuilder:validation:MaxItems=9
 	// +listType=set
 	// +optional
-	Methods []HTTPMethod `json:"methods,omitempty"`
+	Methods []gwapiv1.HTTPMethod `json:"methods,omitempty"`
 
 	// Paths is a list of HTTP request path matchers to match against.
 	// If specified, the request path must match one of the items in the list (OR semantics across list items).
@@ -197,7 +201,7 @@ type AuthorizationRule struct {
 	// +kubebuilder:validation:MaxItems=10
 	// +listType=atomic
 	// +optional
-	Paths []HTTPPathMatch `json:"paths,omitempty"`
+	Paths []gwapiv1.HTTPPathMatch `json:"paths,omitempty"`
 
 	// Headers is a list of HTTP request header matchers to match against.
 	// All specified headers must match (AND semantics across list items).
@@ -205,7 +209,7 @@ type AuthorizationRule struct {
 	// +kubebuilder:validation:MaxItems=10
 	// +listType=atomic
 	// +optional
-	Headers []HTTPHeaderMatch `json:"headers,omitempty"`
+	Headers []gwapiv1.HTTPHeaderMatch `json:"headers,omitempty"`
 
 	// Hosts is a list of HTTP request host matchers to match against.
 	// If specified, the request host / authority header must match one of the items in the list (OR semantics across list items).
@@ -213,7 +217,7 @@ type AuthorizationRule struct {
 	// +kubebuilder:validation:MaxItems=10
 	// +listType=set
 	// +optional
-	Hosts []Hostname `json:"hosts,omitempty"`
+	Hosts []gwapiv1.Hostname `json:"hosts,omitempty"`
 
 	// Ports is a list of destination ports to match against.
 	// If specified, the request destination port must match one of the items in the list (OR semantics across list items).
@@ -231,11 +235,11 @@ type AuthorizationRule struct {
 
 	// CEL specifies a CEL expression for authorization.
 	// +optional
-	CEL *AccessPolicyCELRule `json:"cel,omitempty"`
+	CEL *XAccessPolicyCELRule `json:"cel,omitempty"`
 }
 
-// AccessPolicyCELRule specifies a CEL expression for authorization.
-type AccessPolicyCELRule struct {
+// XAccessPolicyCELRule specifies a CEL expression for authorization.
+type XAccessPolicyCELRule struct {
 	// Expression is the CEL expression to evaluate.
 	// +required
 	Expression string `json:"expression"`
@@ -345,19 +349,19 @@ const (
 	//
 	// * "LimitPerTargetExceeded"
 	//
-	PolicyConditionAccepted gwapiv1.PolicyConditionType = "Accepted"
+	PolicyConditionAccepted gwapiv1a2.PolicyConditionType = "Accepted"
 
 	// This reason is used with the "Accepted" condition when the policy
 	// has been accepted by the controller.
-	PolicyReasonAccepted gwapiv1.PolicyConditionReason = "Accepted"
+	PolicyReasonAccepted gwapiv1a2.PolicyConditionReason = "Accepted"
 
 	// This reason is used with the "Accepted" condition when the policy
 	// was rejected because the maximum number of policies per target was exceeded.
-	PolicyLimitPerTargetExceeded gwapiv1.PolicyConditionReason = "LimitPerTargetExceeded"
+	PolicyLimitPerTargetExceeded gwapiv1a2.PolicyConditionReason = "LimitPerTargetExceeded"
 
 	// This reason is used with the "Accepted" condition when the policy
 	// was rejected because it contains an invalid CEL expression.
-	PolicyReasonInvalidCEL gwapiv1.PolicyConditionReason = "InvalidCEL"
+	PolicyReasonInvalidCEL gwapiv1a2.PolicyConditionReason = "InvalidCEL"
 
 	// PolicyConditionProgrammed indicated whether the policy's spec is guaranteed by the controller to
 	// be fully programmed for enforcement.
@@ -366,18 +370,18 @@ const (
 	//
 	// * "Programmed"
 	//
-	PolicyConditionProgrammed gwapiv1.PolicyConditionType = "Programmed"
+	PolicyConditionProgrammed gwapiv1a2.PolicyConditionType = "Programmed"
 
 	// PolicyReasonProgrammed is used with the "Programmed" condition when the full spec of the policy has been
 	// programmed.
-	PolicyReasonProgrammed gwapiv1.PolicyConditionReason = "Programmed"
+	PolicyReasonProgrammed gwapiv1a2.PolicyConditionReason = "Programmed"
 
 	// PolicyReasonPending is used with the "Programmed" condition when the policy is accepted but not yet fully programmed.
-	PolicyReasonPending gwapiv1.PolicyConditionReason = "Pending"
+	PolicyReasonPending gwapiv1a2.PolicyConditionReason = "Pending"
 )
 
-// AccessPolicyStatus defines the observed state of AccessPolicy.
-type AccessPolicyStatus struct {
+// XAccessPolicyStatus defines the observed state of XAccessPolicy.
+type XAccessPolicyStatus struct {
 	// For Policy Status API conventions, see:
 	// https://gateway-api.sigs.k8s.io/geps/gep-713/#the-status-stanza-of-policy-objects
 	//
@@ -388,7 +392,7 @@ type AccessPolicyStatus struct {
 	// +required
 	// +listType=atomic
 	// +kubebuilder:validation:MaxItems=16
-	Ancestors []gwapiv1.PolicyAncestorStatus `json:"ancestors"`
+	Ancestors []gwapiv1a2.PolicyAncestorStatus `json:"ancestors"`
 }
 
 // +genclient
@@ -396,34 +400,34 @@ type AccessPolicyStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 
-// AccessPolicy is the Schema for the accesspolicies API.
-type AccessPolicy struct {
+// XAccessPolicy is the Schema for the xaccesspolicies API.
+type XAccessPolicy struct {
 	metav1.TypeMeta `json:",inline"`
 
 	// metadata is a standard object metadata.
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// spec defines the desired state of AccessPolicy.
+	// spec defines the desired state of XAccessPolicy.
 	// +required
-	Spec AccessPolicySpec `json:"spec"`
+	Spec XAccessPolicySpec `json:"spec"`
 
-	// status defines the observed state of AccessPolicy.
+	// status defines the observed state of XAccessPolicy.
 	// +optional
-	Status AccessPolicyStatus `json:"status,omitempty"`
+	Status XAccessPolicyStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// AccessPolicyList contains a list of AccessPolicy.
-type AccessPolicyList struct {
+// XAccessPolicyList contains a list of XAccessPolicy.
+type XAccessPolicyList struct {
 	metav1.TypeMeta `json:",inline"`
 	// metadata is a standard list metadata.
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AccessPolicy `json:"items"`
+	Items           []XAccessPolicy `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&AccessPolicy{}, &AccessPolicyList{})
+	SchemeBuilder.Register(&XAccessPolicy{}, &XAccessPolicyList{})
 }

@@ -13,20 +13,20 @@ metadata:
   annotations:
     agentic.networking.x-k8s.io/bundle-version: v0.0.0-dev
     controller-gen.kubebuilder.io/version: v0.16.5
-  name: accesspolicies.agentic.networking.x-k8s.io
+  name: xaccesspolicies.agentic.networking.x-k8s.io
 spec:
   group: agentic.networking.x-k8s.io
   names:
-    kind: AccessPolicy
-    listKind: AccessPolicyList
-    plural: accesspolicies
-    singular: accesspolicy
+    kind: XAccessPolicy
+    listKind: XAccessPolicyList
+    plural: xaccesspolicies
+    singular: xaccesspolicy
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: AccessPolicy is the Schema for the accesspolicies API.
+        description: XAccessPolicy is the Schema for the xaccesspolicies API.
         properties:
           apiVersion:
             description: |-
@@ -46,7 +46,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of AccessPolicy.
+            description: spec defines the desired state of XAccessPolicy.
             properties:
               action:
                 description: |-
@@ -68,7 +68,7 @@ spec:
                   - For ActionTypeExternalAuth: A request is delegated to the external authorizer if it matches any of the rules.
                   If omitted, the policy applies to all traffic (equivalent to matching any request).
                 items:
-                  description: AccessRule specifies an authorization rule for a specified
+                  description: XAccessRule specifies an authorization rule for a specified
                     target.
                   properties:
                     authorization:
@@ -82,6 +82,15 @@ spec:
                             expression:
                               description: Expression is the CEL expression to evaluate.
                               type: string
+                            mcpBaseProtocolMethodsOption:
+                              default: SKIP_BASE_PROTOCOL_METHODS
+                              description: |-
+                                MCPBaseProtocolMethodsOption specifies whether to automatically allow base MCP protocol methods.
+                                Defaults to SKIP_BASE_PROTOCOL_METHODS if not specified.
+                              enum:
+                              - SKIP_BASE_PROTOCOL_METHODS
+                              - MATCH_BASE_PROTOCOL_METHODS
+                              type: string
                           required:
                           - expression
                           type: object
@@ -91,20 +100,43 @@ spec:
                             All specified headers must match (AND semantics across list items).
                             If empty or omitted, no header checking is applied.
                           items:
-                            description: HTTPHeaderMatch describes how to select a
-                              HTTP route by matching HTTP request headers.
+                            description: |-
+                              HTTPHeaderMatch describes how to select a HTTP route by matching HTTP request
+                              headers.
                             properties:
                               name:
-                                description: Name is the name of the HTTP Header to
-                                  be matched.
+                                description: |-
+                                  Name is the name of the HTTP Header to be matched. Name matching MUST be
+                                  case insensitive. (See https://tools.ietf.org/html/rfc7230#section-3.2).
+
+                                  If multiple entries specify equivalent header names, only the first
+                                  entry with an equivalent name MUST be considered for a match. Subsequent
+                                  entries with an equivalent header name MUST be ignored. Due to the
+                                  case-insensitivity of header names, "foo" and "Foo" are considered
+                                  equivalent.
+
+                                  When a header is repeated in an HTTP request, it is
+                                  implementation-specific behavior as to how this is represented.
+                                  Generally, proxies should follow the guidance from the RFC:
+                                  https://www.rfc-editor.org/rfc/rfc7230.html#section-3.2.2 regarding
+                                  processing a repeated header, with special handling for "Set-Cookie".
                                 maxLength: 256
                                 minLength: 1
                                 pattern: ^[A-Za-z0-9!#$%&'*+\-.^_\x60|~]+$
                                 type: string
                               type:
                                 default: Exact
-                                description: Type specifies how to match against the
-                                  value of the header.
+                                description: |-
+                                  Type specifies how to match against the value of the header.
+
+                                  Support: Core (Exact)
+
+                                  Support: Implementation-specific (RegularExpression)
+
+                                  Since RegularExpression HeaderMatchType has implementation-specific
+                                  conformance, implementations can support POSIX, PCRE or any other dialects
+                                  of regular expressions. Please read the implementation's documentation to
+                                  determine the supported dialect.
                                 enum:
                                 - Exact
                                 - RegularExpression
@@ -128,8 +160,21 @@ spec:
                             If specified, the request host / authority header must match one of the items in the list (OR semantics across list items).
                             If empty or omitted, any host is allowed.
                           items:
-                            description: Hostname is the fully qualified domain name
-                              of a network host.
+                            description: |-
+                              Hostname is the fully qualified domain name of a network host. This matches
+                              the RFC 1123 definition of a hostname with 2 notable exceptions:
+
+                               1. IPs are not allowed.
+                               2. A hostname may be prefixed with a wildcard label (`*.`). The wildcard
+                                  label must appear by itself as the first label.
+
+                              Hostname can be "precise" which is a domain name without the terminating
+                              dot of a network host (e.g. "foo.example.com") or "wildcard", which is a
+                              domain name prefixed with a single wildcard label (e.g. `*.example.com`).
+
+                              Note that as per RFC1035 and RFC1123, a *label* must consist of lower case
+                              alphanumeric characters or '-', and must start and end with an alphanumeric
+                              character. No other punctuation is allowed.
                             maxLength: 253
                             minLength: 1
                             pattern: ^(\*\.)?[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
@@ -244,8 +289,19 @@ spec:
                             If specified, the request method must match one of the items in the list (OR semantics across list items).
                             If empty or omitted, any HTTP method is allowed.
                           items:
-                            description: HTTPMethod describes how to select a HTTP
-                              route by matching the HTTP method.
+                            description: |-
+                              HTTPMethod describes how to select a HTTP route by matching the HTTP
+                              method as defined by
+                              [RFC 7231](https://datatracker.ietf.org/doc/html/rfc7231#section-4) and
+                              [RFC 5789](https://datatracker.ietf.org/doc/html/rfc5789#section-2).
+                              The value is expected in upper case.
+
+                              Note that values may be added to this enum, implementations
+                              must ensure that unknown values will not cause a crash.
+
+                              Unknown values here must result in the implementation setting the
+                              Accepted Condition for the Route to `status: False`, with a
+                              Reason of `UnsupportedValue`.
                             enum:
                             - GET
                             - HEAD
@@ -271,19 +327,69 @@ spec:
                             properties:
                               type:
                                 default: PathPrefix
-                                description: Type specifies how to match against the
-                                  path Value.
+                                description: |-
+                                  Type specifies how to match against the path Value.
+
+                                  Support: Core (Exact, PathPrefix)
+
+                                  Support: Implementation-specific (RegularExpression)
                                 enum:
                                 - Exact
                                 - PathPrefix
                                 - RegularExpression
                                 type: string
                               value:
-                                default: ""
+                                default: /
                                 description: Value of the HTTP path to match against.
                                 maxLength: 1024
                                 type: string
                             type: object
+                            x-kubernetes-validations:
+                            - message: value must be an absolute path and start with
+                                '/' when type one of ['Exact', 'PathPrefix']
+                              rule: '(self.type in [''Exact'',''PathPrefix'']) ? self.value.startsWith(''/'')
+                                : true'
+                            - message: must not contain '//' when type one of ['Exact',
+                                'PathPrefix']
+                              rule: '(self.type in [''Exact'',''PathPrefix'']) ? !self.value.contains(''//'')
+                                : true'
+                            - message: must not contain '/./' when type one of ['Exact',
+                                'PathPrefix']
+                              rule: '(self.type in [''Exact'',''PathPrefix'']) ? !self.value.contains(''/./'')
+                                : true'
+                            - message: must not contain '/../' when type one of ['Exact',
+                                'PathPrefix']
+                              rule: '(self.type in [''Exact'',''PathPrefix'']) ? !self.value.contains(''/../'')
+                                : true'
+                            - message: must not contain '%2f' when type one of ['Exact',
+                                'PathPrefix']
+                              rule: '(self.type in [''Exact'',''PathPrefix'']) ? !self.value.contains(''%2f'')
+                                : true'
+                            - message: must not contain '%2F' when type one of ['Exact',
+                                'PathPrefix']
+                              rule: '(self.type in [''Exact'',''PathPrefix'']) ? !self.value.contains(''%2F'')
+                                : true'
+                            - message: must not contain '#' when type one of ['Exact',
+                                'PathPrefix']
+                              rule: '(self.type in [''Exact'',''PathPrefix'']) ? !self.value.contains(''#'')
+                                : true'
+                            - message: must not end with '/..' when type one of ['Exact',
+                                'PathPrefix']
+                              rule: '(self.type in [''Exact'',''PathPrefix'']) ? !self.value.endsWith(''/..'')
+                                : true'
+                            - message: must not end with '/.' when type one of ['Exact',
+                                'PathPrefix']
+                              rule: '(self.type in [''Exact'',''PathPrefix'']) ? !self.value.endsWith(''/.'')
+                                : true'
+                            - message: type must be one of ['Exact', 'PathPrefix',
+                                'RegularExpression']
+                              rule: self.type in ['Exact','PathPrefix'] || self.type
+                                == 'RegularExpression'
+                            - message: must only contain valid characters (matching
+                                ^(?:[-A-Za-z0-9/._~!$&'()*+,;=:@]|[%][0-9a-fA-F]{2})+$)
+                                for types ['Exact', 'PathPrefix']
+                              rule: '(self.type in [''Exact'',''PathPrefix'']) ? self.value.matches(r"""^(?:[-A-Za-z0-9/._~!$&''()*+,;=:@]|[%][0-9a-fA-F]{2})+$""")
+                                : true'
                           maxItems: 10
                           type: array
                           x-kubernetes-list-type: atomic
@@ -390,8 +496,8 @@ spec:
                   rule: self.all(r, self.filter(x, x.name == r.name).size() == 1)
               targetRefs:
                 description: |-
-                  TargetRefs specifies the targets of the AccessPolicy.
-                  An AccessPolicy must target at least one resource.
+                  TargetRefs specifies the targets of the XAccessPolicy.
+                  An XAccessPolicy must target at least one resource.
                   There is one kind of TargetRef with "Core" support:
 
                   * Gateway
@@ -460,7 +566,7 @@ spec:
             - targetRefs
             type: object
           status:
-            description: status defines the observed state of AccessPolicy.
+            description: status defines the observed state of XAccessPolicy.
             properties:
               ancestors:
                 items:
@@ -863,7 +969,7 @@ rules:
 - apiGroups:
   - agentic.networking.x-k8s.io
   resources:
-  - accesspolicies
+  - xaccesspolicies
   verbs:
   - create
   - delete
@@ -875,13 +981,13 @@ rules:
 - apiGroups:
   - agentic.networking.x-k8s.io
   resources:
-  - accesspolicies/finalizers
+  - xaccesspolicies/finalizers
   verbs:
   - update
 - apiGroups:
   - agentic.networking.x-k8s.io
   resources:
-  - accesspolicies/status
+  - xaccesspolicies/status
   verbs:
   - get
   - patch
@@ -1030,7 +1136,7 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: ghcr.io/kuadrant/accesspolicy-controller:latest
+        image: controller:latest
         livenessProbe:
           httpGet:
             path: /healthz

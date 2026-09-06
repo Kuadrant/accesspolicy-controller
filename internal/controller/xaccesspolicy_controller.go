@@ -46,20 +46,20 @@ import (
 
 const gatewayKind = "Gateway"
 
-// AccessPolicyReconciler reconciles a AccessPolicy object
-type AccessPolicyReconciler struct {
+// XAccessPolicyReconciler reconciles a XAccessPolicy object
+type XAccessPolicyReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=agentic.networking.x-k8s.io,resources=accesspolicies,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=agentic.networking.x-k8s.io,resources=accesspolicies/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=agentic.networking.x-k8s.io,resources=accesspolicies/finalizers,verbs=update
+// +kubebuilder:rbac:groups=agentic.networking.x-k8s.io,resources=xaccesspolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=agentic.networking.x-k8s.io,resources=xaccesspolicies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=agentic.networking.x-k8s.io,resources=xaccesspolicies/finalizers,verbs=update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch
 // +kubebuilder:rbac:groups=kuadrant.io,resources=authpolicies,verbs=get;list;watch;create;update;patch;delete
 
 //nolint:gocyclo // Reconcile is naturally complex for this controller
-func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
 	// Fetch the Gateway
@@ -71,14 +71,14 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	// Fetch all AccessPolicies in the namespace
-	var policyList agenticv1alpha1.AccessPolicyList
+	// Fetch all XAccessPolicies in the namespace
+	var policyList agenticv1alpha1.XAccessPolicyList
 	if err := r.List(ctx, &policyList, client.InNamespace(gateway.Namespace)); err != nil {
 		return ctrl.Result{}, err
 	}
 
 	// Filter policies that target this Gateway
-	var targetedPolicies []agenticv1alpha1.AccessPolicy
+	var targetedPolicies []agenticv1alpha1.XAccessPolicy
 	for _, p := range policyList.Items {
 		for _, targetRef := range p.Spec.TargetRefs {
 			if string(targetRef.Kind) == gatewayKind && string(targetRef.Name) == gateway.Name {
@@ -107,7 +107,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Sort policies by CreationTimestamp
 	//nolint:staticcheck // QF1008: could remove embedded field "Time" from selector
-	slices.SortFunc(targetedPolicies, func(a, b agenticv1alpha1.AccessPolicy) int {
+	slices.SortFunc(targetedPolicies, func(a, b agenticv1alpha1.XAccessPolicy) int {
 		return a.CreationTimestamp.Time.Compare(b.CreationTimestamp.Time)
 	})
 
@@ -119,7 +119,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	hasSPIFFE := false
 
 	// Track policies that need status updates
-	validPolicies := make([]*agenticv1alpha1.AccessPolicy, 0)
+	validPolicies := make([]*agenticv1alpha1.XAccessPolicy, 0)
 
 	for i := range targetedPolicies {
 		p := &targetedPolicies[i]
@@ -156,6 +156,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 			var authExprs []string
 			if rule.Authorization != nil {
+				baseMethodsExpr := "('x-mcp-method' in request.headers ? (request.headers['x-mcp-method'] in ['initialize', 'tools/list', 'ping', 'resources/list', 'prompts/list', 'resources/templates/list'] || request.headers['x-mcp-method'].startsWith('completion') || request.headers['x-mcp-method'].startsWith('logging') || request.headers['x-mcp-method'].startsWith('notifications')) : (('x-mcp-toolname' in request.headers || 'X-Mcp-Toolname' in request.headers) ? false : true))"
 				if string(rule.Authorization.Type) == "CEL" && rule.Authorization.CEL != nil {
 					authExpr := rule.Authorization.CEL.Expression
 					authExpr = translator.TranslateCEL(authExpr)
@@ -168,24 +169,30 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					}
 
 					if rule.Authorization.CEL.MCPBaseProtocolMethodsOption == agenticv1alpha1.MCPBaseProtocolMethodsOptionMatch {
-						baseMethodsExpr := "request.headers['x-mcp-method'] in ['initialize', 'tools/list', 'completion', 'logging', 'notifications', 'ping'] || request.method in ['GET', 'DELETE']"
 						authExpr = fmt.Sprintf("(%s) || (%s)", authExpr, baseMethodsExpr)
 					}
 
 					authExprs = append(authExprs, authExpr)
 				} else if string(rule.Authorization.Type) == "Inline" {
 					if rule.Authorization.MCP.MCPBaseProtocolMethodsOption == agenticv1alpha1.MCPBaseProtocolMethodsOptionMatch {
-						authExprs = append(authExprs, "request.headers['x-mcp-method'] in ['initialize', 'tools/list', 'completion', 'logging', 'notifications', 'ping'] || request.method in ['GET', 'DELETE']")
+						authExprs = append(authExprs, baseMethodsExpr)
 					}
 					var methodExprs []string
 					if len(rule.Authorization.MCP.Methods) > 0 {
 						for _, m := range rule.Authorization.MCP.Methods {
 							if len(m.Params) > 0 {
 								for _, param := range m.Params {
-									methodExprs = append(methodExprs, fmt.Sprintf("(request.headers['x-mcp-method'] == '%s' && request.headers['x-mcp-toolname'] == '%s')", m.Name, param))
+									expr := fmt.Sprintf("('x-mcp-method' in request.headers ? ((request.headers['x-mcp-method'] == '%s' || request.headers['x-mcp-method'] == 'tools/call') && ('x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] == '%s' : true)) : ('x-mcp-toolname' in request.headers || 'X-Mcp-Toolname' in request.headers ? ('x-mcp-toolname' in request.headers && request.headers['x-mcp-toolname'] == '%s' || 'X-Mcp-Toolname' in request.headers && request.headers['X-Mcp-Toolname'] == '%s') : true))", m.Name, param, param, param)
+									methodExprs = append(methodExprs, expr)
 								}
 							} else {
-								methodExprs = append(methodExprs, fmt.Sprintf("request.headers['x-mcp-method'] == '%s'", m.Name))
+								var expr string
+								if m.Name == "tools" || m.Name == "prompts" || m.Name == "resources" {
+									expr = fmt.Sprintf("('x-mcp-method' in request.headers ? (request.headers['x-mcp-method'] == '%s' || request.headers['x-mcp-method'].startsWith('%s/')) : true)", m.Name, m.Name)
+								} else {
+									expr = fmt.Sprintf("('x-mcp-method' in request.headers ? (request.headers['x-mcp-method'] == '%s' || ('x-mcp-toolname' in request.headers && request.headers['x-mcp-toolname'] == '%s')) : ('x-mcp-toolname' in request.headers ? request.headers['x-mcp-toolname'] == '%s' : true))", m.Name, m.Name, m.Name)
+								}
+								methodExprs = append(methodExprs, expr)
 							}
 						}
 					}
@@ -199,13 +206,28 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				continue
 			}
 
-			whenPredicates := []authorinov1beta3.PatternExpressionOrRef{
-				{CelPredicate: authorinov1beta3.CelPredicate{Predicate: "size(auth.authorization) == 0"}},
-			}
+			var whenPredicates []authorinov1beta3.PatternExpressionOrRef
 			if principal != "" {
-				whenPredicates = append(whenPredicates, authorinov1beta3.PatternExpressionOrRef{
-					CelPredicate: authorinov1beta3.CelPredicate{Predicate: fmt.Sprintf("auth.identity.principal == '%s'", principal)},
-				})
+				if rule.Source.Type == agenticv1alpha1.AuthorizationSourceTypeServiceAccount && rule.Source.ServiceAccount != nil {
+					ns := rule.Source.ServiceAccount.Namespace
+					if ns == "" {
+						ns = p.Namespace
+					}
+					saName := rule.Source.ServiceAccount.Name
+					spiffeID := fmt.Sprintf("spiffe://cluster.local/ns/%s/sa/%s", ns, saName)
+					whenPredicates = append(whenPredicates, authorinov1beta3.PatternExpressionOrRef{
+						CelPredicate: authorinov1beta3.CelPredicate{Predicate: fmt.Sprintf("(has(auth.identity.principal) && (auth.identity.principal == '%s' || auth.identity.principal == '%s')) || (has(auth.identity.anonymous) && auth.identity.anonymous == true)", principal, spiffeID)},
+					})
+				} else if rule.Source.Type == agenticv1alpha1.AuthorizationSourceTypeSPIFFE && rule.Source.SPIFFE != nil {
+					spiffeID := string(*rule.Source.SPIFFE)
+					whenPredicates = append(whenPredicates, authorinov1beta3.PatternExpressionOrRef{
+						CelPredicate: authorinov1beta3.CelPredicate{Predicate: fmt.Sprintf("(has(auth.identity.principal) && auth.identity.principal == '%s') || (has(auth.identity.anonymous) && auth.identity.anonymous == true)", spiffeID)},
+					})
+				} else {
+					whenPredicates = append(whenPredicates, authorinov1beta3.PatternExpressionOrRef{
+						CelPredicate: authorinov1beta3.CelPredicate{Predicate: fmt.Sprintf("(has(auth.identity.principal) && auth.identity.principal == '%s') || (has(auth.identity.anonymous) && auth.identity.anonymous == true)", principal)},
+					})
+				}
 			}
 			if len(authExprs) > 0 {
 				combinedAuthExpr := strings.Join(authExprs, " || ")
@@ -218,7 +240,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			if p.Spec.Action == agenticv1alpha1.ActionTypeAllow || p.Spec.Action == "" {
 				regoRule = "allow = true"
 			} else if string(p.Spec.Action) == "Deny" {
-				regoRule = "allow = false"
+				regoRule = "allow = false\ndeny = true"
 			}
 
 			ruleKey := fmt.Sprintf("%s-%s", p.Name, rule.Name)
@@ -247,14 +269,11 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	authorizations["fail-close"] = kuadrantv1.MergeableAuthorizationSpec{
 		AuthorizationSpec: authorinov1beta3.AuthorizationSpec{
 			CommonEvaluatorSpec: authorinov1beta3.CommonEvaluatorSpec{
-				Priority: priority,
-				Conditions: []authorinov1beta3.PatternExpressionOrRef{
-					{CelPredicate: authorinov1beta3.CelPredicate{Predicate: "size(auth.authorization) == 0"}},
-				},
+				Priority: 999,
 			},
 			AuthorizationMethodSpec: authorinov1beta3.AuthorizationMethodSpec{
 				Opa: &authorinov1beta3.OpaAuthorizationSpec{
-					Rego: "allow = false",
+					Rego: "default deny = true\n\ndeny = false {\n  some k\n  input.auth.authorization[k].allow == true\n}\n\nallow {\n  some k\n  input.auth.authorization[k].allow == true\n}",
 				},
 			},
 		},
@@ -278,23 +297,35 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				},
 			},
 		}
+		authentications["anonymous"] = kuadrantv1.MergeableAuthenticationSpec{
+			AuthenticationSpec: authorinov1beta3.AuthenticationSpec{
+				AuthenticationMethodSpec: authorinov1beta3.AuthenticationMethodSpec{
+					AnonymousAccess: &authorinov1beta3.AnonymousAccessSpec{},
+				},
+				CommonEvaluatorSpec: authorinov1beta3.CommonEvaluatorSpec{
+					Conditions: []authorinov1beta3.PatternExpressionOrRef{
+						{CelPredicate: authorinov1beta3.CelPredicate{Predicate: "!('authorization' in request.headers) || !request.headers['authorization'].startsWith('Bearer ')"}},
+					},
+				},
+			},
+		}
 	}
 
-	if hasSPIFFE {
+	if hasSPIFFE || hasServiceAccount {
 		authentications["spiffe"] = kuadrantv1.MergeableAuthenticationSpec{
 			AuthenticationSpec: authorinov1beta3.AuthenticationSpec{
 				AuthenticationMethodSpec: authorinov1beta3.AuthenticationMethodSpec{
 					Plain: &authorinov1beta3.PlainIdentitySpec{
-						Expression: "source.principal",
+						Expression: "request.source.principal",
 					},
 				},
 				CommonEvaluatorSpec: authorinov1beta3.CommonEvaluatorSpec{
 					Conditions: []authorinov1beta3.PatternExpressionOrRef{
-						{CelPredicate: authorinov1beta3.CelPredicate{Predicate: "source.principal.startsWith('spiffe://')"}},
+						{CelPredicate: authorinov1beta3.CelPredicate{Predicate: "has(request.source.principal) && request.source.principal.startsWith('spiffe://')"}},
 					},
 				},
 				Overrides: authorinov1beta3.ExtendedProperties{
-					"principal": authorinov1beta3.ValueOrSelector{Expression: "source.principal"},
+					"principal": authorinov1beta3.ValueOrSelector{Expression: "request.source.principal"},
 				},
 			},
 		}
@@ -304,7 +335,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if authPolicy.Labels == nil {
 			authPolicy.Labels = map[string]string{}
 		}
-		authPolicy.Labels["app.kubernetes.io/managed-by"] = "accesspolicy-controller"
+		authPolicy.Labels["app.kubernetes.io/managed-by"] = "xaccesspolicy-controller"
 
 		if err := controllerutil.SetControllerReference(&gateway, authPolicy, r.Scheme); err != nil {
 			log.Error(err, "unable to set owner reference")
@@ -324,6 +355,19 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 		authPolicy.Spec.AuthScheme.Authentication = authentications
 		authPolicy.Spec.AuthScheme.Authorization = authorizations
+		authPolicy.Spec.AuthScheme.Response = &kuadrantv1.MergeableResponseSpec{
+			Unauthorized: &kuadrantv1.MergeableDenyWithSpec{
+				DenyWithSpec: authorinov1beta3.DenyWithSpec{
+					Code: authorinov1beta3.DenyWithCode(403),
+					Headers: authorinov1beta3.NamedValuesOrSelectors{
+						"content-type": authorinov1beta3.ValueOrSelector{Value: runtime.RawExtension{Raw: []byte(`"application/json"`)}},
+					},
+					Body: &authorinov1beta3.ValueOrSelector{
+						Value: runtime.RawExtension{Raw: []byte(`{"jsonrpc":"2.0","error":{"code":403,"message":"Access to this tool is forbidden."}}`)},
+					},
+				},
+			},
+		}
 
 		return nil
 	})
@@ -365,7 +409,7 @@ func (r *AccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 }
 
 //nolint:unparam // conditionType is kept for signature consistency
-func (r *AccessPolicyReconciler) updateStatus(policy *agenticv1alpha1.AccessPolicy, targetRef gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName, conditionType gatewayapiv1alpha2.PolicyConditionType, status metav1.ConditionStatus, reason gatewayapiv1alpha2.PolicyConditionReason, message string) {
+func (r *XAccessPolicyReconciler) updateStatus(policy *agenticv1alpha1.XAccessPolicy, targetRef gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName, conditionType gatewayapiv1alpha2.PolicyConditionType, status metav1.ConditionStatus, reason gatewayapiv1alpha2.PolicyConditionReason, message string) {
 	var ancestor *gatewayapiv1alpha2.PolicyAncestorStatus
 
 	gwGroup := gatewayapiv1.Group("gateway.networking.k8s.io")
@@ -397,7 +441,7 @@ func (r *AccessPolicyReconciler) updateStatus(policy *agenticv1alpha1.AccessPoli
 	if ancestor == nil {
 		policy.Status.Ancestors = append(policy.Status.Ancestors, gatewayapiv1alpha2.PolicyAncestorStatus{
 			AncestorRef:    ancestorRef,
-			ControllerName: "agentic.networking.x-k8s.io/accesspolicy-controller",
+			ControllerName: "agentic.networking.x-k8s.io/xaccesspolicy-controller",
 		})
 		ancestor = &policy.Status.Ancestors[len(policy.Status.Ancestors)-1]
 	}
@@ -412,19 +456,19 @@ func (r *AccessPolicyReconciler) updateStatus(policy *agenticv1alpha1.AccessPoli
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *AccessPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *XAccessPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayapiv1.Gateway{}).
 		Watches(
-			&agenticv1alpha1.AccessPolicy{},
+			&agenticv1alpha1.XAccessPolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.findGatewaysForPolicy),
 		).
 		Owns(&kuadrantv1.AuthPolicy{}).
 		Complete(r)
 }
 
-func (r *AccessPolicyReconciler) findGatewaysForPolicy(ctx context.Context, obj client.Object) []reconcile.Request {
-	policy, ok := obj.(*agenticv1alpha1.AccessPolicy)
+func (r *XAccessPolicyReconciler) findGatewaysForPolicy(ctx context.Context, obj client.Object) []reconcile.Request {
+	policy, ok := obj.(*agenticv1alpha1.XAccessPolicy)
 	if !ok {
 		return nil
 	}
