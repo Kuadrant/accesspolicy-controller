@@ -26,8 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	agenticv1alpha1 "github.com/Kuadrant/accesspolicy-controller/api/v1alpha1"
-	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
+	agenticv1alpha1 "sigs.k8s.io/kube-agentic-networking/api/v1alpha1"
 )
 
 var _ = Describe("XAccessPolicy Controller", func() {
@@ -54,18 +54,18 @@ var _ = Describe("XAccessPolicy Controller", func() {
 						Name:      resourceName,
 						Namespace: resourceNamespace,
 					},
-					Spec: agenticv1alpha1.XAccessPolicySpec{
-						TargetRefs: []gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName{
+					Spec: agenticv1alpha1.AccessPolicySpec{
+						TargetRefs: []gatewayapiv1.LocalPolicyTargetReferenceWithSectionName{
 							{
-								LocalPolicyTargetReference: gatewayapiv1alpha2.LocalPolicyTargetReference{
+								LocalPolicyTargetReference: gatewayapiv1.LocalPolicyTargetReference{
 									Group: "gateway.networking.k8s.io",
-									Kind:  gatewayapiv1alpha2.Kind(gatewayKind),
+									Kind:  gatewayapiv1.Kind(gatewayKind),
 									Name:  "test-gateway",
 								},
 							},
 						},
 						Action: "Allow",
-						Rules: []agenticv1alpha1.XAccessRule{
+						Rules: []agenticv1alpha1.AccessRule{
 							{
 								Name: "test-rule",
 								Source: agenticv1alpha1.AccessRuleSource{
@@ -76,7 +76,7 @@ var _ = Describe("XAccessPolicy Controller", func() {
 								},
 								Authorization: &agenticv1alpha1.AuthorizationRule{
 									Type: agenticv1alpha1.AuthorizationRuleTypeCEL,
-									CEL: &agenticv1alpha1.XAccessPolicyCELRule{
+									CEL: &agenticv1alpha1.AccessPolicyCELRule{
 										Expression: "request.mcp.tool_name == 'search_web'",
 									},
 								},

@@ -36,7 +36,7 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	agenticv1alpha1 "github.com/Kuadrant/accesspolicy-controller/api/v1alpha1"
+	agenticv1alpha1 "sigs.k8s.io/kube-agentic-networking/api/v1alpha1"
 
 	authorinov1beta3 "github.com/kuadrant/authorino/api/v1beta3"
 	kuadrantv1 "github.com/kuadrant/kuadrant-operator/api/v1"
@@ -124,7 +124,7 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	for i := range targetedPolicies {
 		p := &targetedPolicies[i]
 
-		var currentTargetRef gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName
+		var currentTargetRef gatewayapiv1.LocalPolicyTargetReferenceWithSectionName
 		for _, targetRef := range p.Spec.TargetRefs {
 			if string(targetRef.Kind) == gatewayKind && string(targetRef.Name) == gateway.Name {
 				currentTargetRef = targetRef
@@ -133,8 +133,8 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 
 		if p.Spec.Action == agenticv1alpha1.ActionTypeExternalAuth {
-			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "ExternalAuth action is out of scope and not supported")
-			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionProgrammed, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "ExternalAuth action is out of scope and not supported")
+			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1.PolicyConditionReason("Invalid"), "ExternalAuth action is out of scope and not supported")
+			r.updateStatus(p, currentTargetRef, gatewayapiv1.PolicyConditionType("Programmed"), metav1.ConditionFalse, gatewayapiv1.PolicyConditionReason("Invalid"), "ExternalAuth action is out of scope and not supported")
 			_ = r.Status().Update(ctx, p)
 			continue
 		}
@@ -161,14 +161,14 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					authExpr := rule.Authorization.CEL.Expression
 					authExpr = translator.TranslateCEL(authExpr)
 					if err := translator.ValidateCEL(authExpr); err != nil {
-						r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "Invalid CEL: "+err.Error())
-						r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionProgrammed, metav1.ConditionFalse, gatewayapiv1alpha2.PolicyReasonInvalid, "Invalid CEL: "+err.Error())
+						r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionFalse, agenticv1alpha1.PolicyReasonInvalidCEL, "Invalid CEL: "+err.Error())
+						r.updateStatus(p, currentTargetRef, gatewayapiv1.PolicyConditionType("Programmed"), metav1.ConditionFalse, agenticv1alpha1.PolicyReasonInvalidCEL, "Invalid CEL: "+err.Error())
 						_ = r.Status().Update(ctx, p)
 						allValid = false
 						break
 					}
 
-					if rule.Authorization.CEL.MCPBaseProtocolMethodsOption == agenticv1alpha1.MCPBaseProtocolMethodsOptionMatch {
+					if rule.Authorization.MCP.MCPBaseProtocolMethodsOption == agenticv1alpha1.MCPBaseProtocolMethodsOptionMatch {
 						authExpr = fmt.Sprintf("(%s) || (%s)", authExpr, baseMethodsExpr)
 					}
 
@@ -342,10 +342,10 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 
 		authPolicy.Spec.TargetRef = gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName{
-			LocalPolicyTargetReference: gatewayapiv1alpha2.LocalPolicyTargetReference{
+			LocalPolicyTargetReference: gatewayapiv1.LocalPolicyTargetReference{
 				Group: "gateway.networking.k8s.io",
 				Kind:  gatewayKind,
-				Name:  gatewayapiv1alpha2.ObjectName(gateway.Name),
+				Name:  gatewayapiv1.ObjectName(gateway.Name),
 			},
 		}
 
@@ -375,7 +375,7 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		// Update all valid policies with ProgramError
 		for _, p := range validPolicies {
-			var currentTargetRef gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName
+			var currentTargetRef gatewayapiv1.LocalPolicyTargetReferenceWithSectionName
 			for _, targetRef := range p.Spec.TargetRefs {
 				if string(targetRef.Kind) == gatewayKind && string(targetRef.Name) == gateway.Name {
 					currentTargetRef = targetRef
@@ -383,7 +383,7 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				}
 			}
 			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionTrue, agenticv1alpha1.PolicyReasonAccepted, "Policy accepted and valid")
-			r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionProgrammed, metav1.ConditionFalse, agenticv1alpha1.PolicyReasonPending, "ProgramError: "+err.Error())
+			r.updateStatus(p, currentTargetRef, gatewayapiv1.PolicyConditionType("Programmed"), metav1.ConditionFalse, gatewayapiv1.PolicyConditionReason("Pending"), "ProgramError: "+err.Error())
 			_ = r.Status().Update(ctx, p)
 		}
 		return ctrl.Result{}, err
@@ -393,7 +393,7 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Update successful status for all valid policies
 	for _, p := range validPolicies {
-		var currentTargetRef gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName
+		var currentTargetRef gatewayapiv1.LocalPolicyTargetReferenceWithSectionName
 		for _, targetRef := range p.Spec.TargetRefs {
 			if string(targetRef.Kind) == gatewayKind && string(targetRef.Name) == gateway.Name {
 				currentTargetRef = targetRef
@@ -401,7 +401,7 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			}
 		}
 		r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionTrue, agenticv1alpha1.PolicyReasonAccepted, "Policy accepted and valid")
-		r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionProgrammed, metav1.ConditionTrue, agenticv1alpha1.PolicyReasonProgrammed, "Policy has been programmed successfully")
+		r.updateStatus(p, currentTargetRef, gatewayapiv1.PolicyConditionType("Programmed"), metav1.ConditionTrue, gatewayapiv1.PolicyConditionReason("Programmed"), "Policy has been programmed successfully")
 		_ = r.Status().Update(ctx, p)
 	}
 
@@ -409,8 +409,8 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 }
 
 //nolint:unparam // conditionType is kept for signature consistency
-func (r *XAccessPolicyReconciler) updateStatus(policy *agenticv1alpha1.XAccessPolicy, targetRef gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName, conditionType gatewayapiv1alpha2.PolicyConditionType, status metav1.ConditionStatus, reason gatewayapiv1alpha2.PolicyConditionReason, message string) {
-	var ancestor *gatewayapiv1alpha2.PolicyAncestorStatus
+func (r *XAccessPolicyReconciler) updateStatus(policy *agenticv1alpha1.XAccessPolicy, targetRef gatewayapiv1.LocalPolicyTargetReferenceWithSectionName, conditionType gatewayapiv1.PolicyConditionType, status metav1.ConditionStatus, reason gatewayapiv1.PolicyConditionReason, message string) {
+	var ancestor *gatewayapiv1.PolicyAncestorStatus
 
 	gwGroup := gatewayapiv1.Group("gateway.networking.k8s.io")
 	gwKind := gatewayapiv1.Kind("Gateway")
@@ -439,7 +439,7 @@ func (r *XAccessPolicyReconciler) updateStatus(policy *agenticv1alpha1.XAccessPo
 	}
 
 	if ancestor == nil {
-		policy.Status.Ancestors = append(policy.Status.Ancestors, gatewayapiv1alpha2.PolicyAncestorStatus{
+		policy.Status.Ancestors = append(policy.Status.Ancestors, gatewayapiv1.PolicyAncestorStatus{
 			AncestorRef:    ancestorRef,
 			ControllerName: "agentic.networking.x-k8s.io/xaccesspolicy-controller",
 		})
