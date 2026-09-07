@@ -34,7 +34,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	agenticv1alpha1 "sigs.k8s.io/kube-agentic-networking/api/v1alpha1"
 
@@ -341,7 +340,7 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "unable to set owner reference")
 		}
 
-		authPolicy.Spec.TargetRef = gatewayapiv1alpha2.LocalPolicyTargetReferenceWithSectionName{
+		authPolicy.Spec.TargetRef = gatewayapiv1.LocalPolicyTargetReferenceWithSectionName{
 			LocalPolicyTargetReference: gatewayapiv1.LocalPolicyTargetReference{
 				Group: "gateway.networking.k8s.io",
 				Kind:  gatewayKind,

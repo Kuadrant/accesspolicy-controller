@@ -62,7 +62,7 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	var err error
-	err = agenticv1alpha1.AddToScheme(scheme.Scheme)
+	err = agenticv1alpha1.Install(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = kuadrantv1.AddToScheme(scheme.Scheme)

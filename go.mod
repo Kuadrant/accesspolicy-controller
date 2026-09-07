@@ -11,9 +11,11 @@ require (
 	k8s.io/apimachinery v0.36.1
 	k8s.io/client-go v0.36.1
 	sigs.k8s.io/controller-runtime v0.24.1
-	sigs.k8s.io/gateway-api v1.5.1
+	sigs.k8s.io/gateway-api v1.6.0
 	sigs.k8s.io/kube-agentic-networking v0.2.0
 )
+
+replace github.com/kuadrant/kuadrant-operator => github.com/vibhor-5/kuadrant-operator v0.0.0-20260905065812-c6922139c1b6
 
 require (
 	cel.dev/expr v0.25.2 // indirect
@@ -107,9 +109,9 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/api v0.36.1 // indirect
-	k8s.io/apiextensions-apiserver v0.36.0 // indirect
-	k8s.io/apiserver v0.36.0 // indirect
-	k8s.io/component-base v0.36.0 // indirect
+	k8s.io/apiextensions-apiserver v0.36.1 // indirect
+	k8s.io/apiserver v0.36.1 // indirect
+	k8s.io/component-base v0.36.1 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260501160325-927ab1f70cd6 // indirect
 	k8s.io/streaming v0.36.1 // indirect
@@ -121,7 +123,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-replace github.com/kuadrant/policy-machinery => /Users/vibhorkumar/.gemini/antigravity-cli/brain/0860fd9a-302f-4818-8c73-9f1679d0a5ce/scratch/policy-machinery
-
-replace github.com/kuadrant/kuadrant-operator => /Users/vibhorkumar/.gemini/antigravity-cli/brain/0860fd9a-302f-4818-8c73-9f1679d0a5ce/scratch/kuadrant-operator

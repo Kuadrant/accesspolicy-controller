@@ -50,7 +50,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(agenticv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(agenticv1alpha1.Install(scheme))
 	utilruntime.Must(kuadrantv1.AddToScheme(scheme))
 	utilruntime.Must(gatewayapiv1.Install(scheme))
 	// +kubebuilder:scaffold:scheme
