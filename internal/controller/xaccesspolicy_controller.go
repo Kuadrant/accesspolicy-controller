@@ -43,7 +43,11 @@ import (
 	"github.com/Kuadrant/accesspolicy-controller/internal/translator"
 )
 
-const gatewayKind = "Gateway"
+const (
+	gatewayKind   = "Gateway"
+	gatewayGroup  = "gateway.networking.k8s.io"
+	principalProp = "principal"
+)
 
 // XAccessPolicyReconciler reconciles a XAccessPolicy object
 type XAccessPolicyReconciler struct {
@@ -292,7 +296,7 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					},
 				},
 				Overrides: authorinov1beta3.ExtendedProperties{
-					"principal": authorinov1beta3.ValueOrSelector{Expression: "auth.identity.user.username"},
+					principalProp: authorinov1beta3.ValueOrSelector{Expression: "auth.identity.user.username"},
 				},
 			},
 		}
@@ -324,7 +328,46 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					},
 				},
 				Overrides: authorinov1beta3.ExtendedProperties{
-					"principal": authorinov1beta3.ValueOrSelector{Expression: "request.source.principal"},
+					principalProp: authorinov1beta3.ValueOrSelector{Expression: "request.source.principal"},
+				},
+			},
+		}
+		authentications["spiffe-header"] = kuadrantv1.MergeableAuthenticationSpec{
+			AuthenticationSpec: authorinov1beta3.AuthenticationSpec{
+				AuthenticationMethodSpec: authorinov1beta3.AuthenticationMethodSpec{
+					Plain: &authorinov1beta3.PlainIdentitySpec{
+						Expression: "request.headers['x-spiffe-id']",
+					},
+				},
+				CommonEvaluatorSpec: authorinov1beta3.CommonEvaluatorSpec{
+					Conditions: []authorinov1beta3.PatternExpressionOrRef{
+						{CelPredicate: authorinov1beta3.CelPredicate{Predicate: "'x-spiffe-id' in request.headers && request.headers['x-spiffe-id'].startsWith('spiffe://')"}},
+					},
+				},
+				Overrides: authorinov1beta3.ExtendedProperties{
+					principalProp: authorinov1beta3.ValueOrSelector{Expression: "request.headers['x-spiffe-id']"},
+				},
+			},
+		}
+	}
+
+	if len(authentications) == 0 {
+		authentications["plain"] = kuadrantv1.MergeableAuthenticationSpec{
+			AuthenticationSpec: authorinov1beta3.AuthenticationSpec{
+				AuthenticationMethodSpec: authorinov1beta3.AuthenticationMethodSpec{
+					Plain: &authorinov1beta3.PlainIdentitySpec{
+						Expression: "'anonymous'",
+					},
+				},
+				Overrides: authorinov1beta3.ExtendedProperties{
+					"anonymous": authorinov1beta3.ValueOrSelector{Value: runtime.RawExtension{Raw: []byte(`"true"`)}},
+				},
+			},
+		}
+		authentications["anonymous"] = kuadrantv1.MergeableAuthenticationSpec{
+			AuthenticationSpec: authorinov1beta3.AuthenticationSpec{
+				AuthenticationMethodSpec: authorinov1beta3.AuthenticationMethodSpec{
+					AnonymousAccess: &authorinov1beta3.AnonymousAccessSpec{},
 				},
 			},
 		}
@@ -342,7 +385,7 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 		authPolicy.Spec.TargetRef = gatewayapiv1.LocalPolicyTargetReferenceWithSectionName{
 			LocalPolicyTargetReference: gatewayapiv1.LocalPolicyTargetReference{
-				Group: "gateway.networking.k8s.io",
+				Group: gatewayapiv1.Group(gatewayGroup),
 				Kind:  gatewayKind,
 				Name:  gatewayapiv1.ObjectName(gateway.Name),
 			},
@@ -390,7 +433,13 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	log.Info("Reconciled AuthPolicy", "operation", op)
 
-	// Update successful status for all valid policies
+	// Fetch latest AuthPolicy status to verify if it is 'Enforced'
+	isEnforced := false
+	if err := r.Get(ctx, types.NamespacedName{Name: authPolicyName, Namespace: gateway.Namespace}, authPolicy); err == nil {
+		isEnforced = meta.IsStatusConditionTrue(authPolicy.Status.Conditions, "Enforced")
+	}
+
+	// Update status for all valid policies
 	for _, p := range validPolicies {
 		var currentTargetRef gatewayapiv1.LocalPolicyTargetReferenceWithSectionName
 		for _, targetRef := range p.Spec.TargetRefs {
@@ -400,7 +449,11 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			}
 		}
 		r.updateStatus(p, currentTargetRef, agenticv1alpha1.PolicyConditionAccepted, metav1.ConditionTrue, agenticv1alpha1.PolicyReasonAccepted, "Policy accepted and valid")
-		r.updateStatus(p, currentTargetRef, gatewayapiv1.PolicyConditionType("Programmed"), metav1.ConditionTrue, gatewayapiv1.PolicyConditionReason("Programmed"), "Policy has been programmed successfully")
+		if isEnforced {
+			r.updateStatus(p, currentTargetRef, gatewayapiv1.PolicyConditionType("Programmed"), metav1.ConditionTrue, gatewayapiv1.PolicyConditionReason("Programmed"), "Policy has been programmed successfully")
+		} else {
+			r.updateStatus(p, currentTargetRef, gatewayapiv1.PolicyConditionType("Programmed"), metav1.ConditionFalse, gatewayapiv1.PolicyConditionReason("Pending"), "Waiting for AuthPolicy to be enforced")
+		}
 		_ = r.Status().Update(ctx, p)
 	}
 
@@ -411,8 +464,8 @@ func (r *XAccessPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *XAccessPolicyReconciler) updateStatus(policy *agenticv1alpha1.XAccessPolicy, targetRef gatewayapiv1.LocalPolicyTargetReferenceWithSectionName, conditionType gatewayapiv1.PolicyConditionType, status metav1.ConditionStatus, reason gatewayapiv1.PolicyConditionReason, message string) {
 	var ancestor *gatewayapiv1.PolicyAncestorStatus
 
-	gwGroup := gatewayapiv1.Group("gateway.networking.k8s.io")
-	gwKind := gatewayapiv1.Kind("Gateway")
+	gwGroup := gatewayapiv1.Group(gatewayGroup)
+	gwKind := gatewayapiv1.Kind(gatewayKind)
 	if targetRef.Group != "" {
 		gwGroup = targetRef.Group
 	}
